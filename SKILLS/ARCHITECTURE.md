@@ -7,10 +7,10 @@
 ## Visao Geral
 
 ```
-Total de Skills: 33
+Total de Skills: 37
 Fases: 7 (0-6)
-Skills Fase 0 (sempre ativas): 5
-Skills sob demanda: 28
+Skills Fase 0 (sempre ativas): 8
+Skills sob demanda: 29
 Professions: extensivel (user-managed)
 Workflows: 3
 ```
@@ -28,6 +28,9 @@ Workflows: 3
 | Lint and Validate | `lint-and-validate/` | Validacao automatica de codigo |
 | Git Pushing | `git-pushing/` | Commits seguros e convencionais |
 | Kaizen | `kaizen/` | Melhoria continua, sugestoes proativas |
+| Verification Before Completion | `verification-before-completion/` | Gate obrigatorio antes de declarar "done" |
+| Dispatching Parallel Agents | `dispatching-parallel-agents/` | Orquestracao de sub-agentes em paralelo |
+| Enforcement Layer | `enforcement-layer/` | Garante invocacao obrigatoria de skills |
 
 ### FASE 1 — Ideacao & Planeamento
 
@@ -46,6 +49,7 @@ Workflows: 3
 | Architecture Patterns | `architecture-patterns/` | Clean Architecture, DDD, Hexagonal |
 | Database Design | `database-design/` | Schema design, normalizacao, ORM |
 | API Patterns | `api-patterns/` | REST vs GraphQL vs tRPC |
+| SOTA Agent Engineering | `sota-agent-engineering/` | Arquitectura de agentes autonomos SOTA |
 
 ### FASE 3 — Backend
 
@@ -103,6 +107,7 @@ ARQUITETURA:
   arquitetura|sistema|pattern         → senior-architect, architecture-patterns
   database|schema|ORM|SQL|Prisma      → database-design
   API|REST|GraphQL|tRPC|endpoint      → api-patterns
+  agente|agent|autonomo|pipeline|orchestration|MCP → sota-agent-engineering
 
 BACKEND:
   backend|servidor|Node|Express       → backend-dev-guidelines, senior-fullstack
@@ -128,6 +133,11 @@ DEPLOY:
   commit|mensagem                     → commit
   PR|pull-request|merge               → create-pr
   changelog|release|versao            → changelog-automation
+
+ENFORCEMENT (SEMPRE ATIVO):
+  done|completo|pronto|terminado|feito → verification-before-completion
+  paralelo|agentes|concurrent|dispatch → dispatching-parallel-agents
+  (enforcement-layer aplica-se automaticamente a TODOS os requests)
 ```
 
 ### Complexidade → Combinacao de Skills
@@ -146,12 +156,19 @@ DEPLOY:
 [Pedido do Utilizador]
        │
        ▼
-[Fase 0 — SEMPRE ATIVA]
+[ENFORCEMENT CHECK]
+  "Alguma skill se aplica? 1% chance = MUST invoke"
+       │
+       ▼
+[Fase 0 — SEMPRE ATIVA (8 skills)]
   concise-planning
   systematic-debugging
   lint-and-validate
   git-pushing
   kaizen
+  verification-before-completion
+  dispatching-parallel-agents
+  enforcement-layer
        │
        ▼
 [Classificar Request]
@@ -170,7 +187,8 @@ DEPLOY:
   Aplicar conhecimento combinado
        │
        ▼
-[Validar]
+[VERIFICATION GATE]
+  Antes de declarar "done": evidencia fresca obrigatoria
   lint-and-validate + testes se aplicavel
 ```
 

@@ -103,6 +103,7 @@ export type Database = {
           impact_score: number | null
           language: string
           lead: string | null
+          priority: string | null
           published_at: string | null
           review_notes: string | null
           reviewed_by: string | null
@@ -126,6 +127,7 @@ export type Database = {
           impact_score?: number | null
           language?: string
           lead?: string | null
+          priority?: string | null
           published_at?: string | null
           review_notes?: string | null
           reviewed_by?: string | null
@@ -149,6 +151,7 @@ export type Database = {
           impact_score?: number | null
           language?: string
           lead?: string | null
+          priority?: string | null
           published_at?: string | null
           review_notes?: string | null
           reviewed_by?: string | null
@@ -158,6 +161,42 @@ export type Database = {
           tags?: string[] | null
           title?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      claim_embeddings: {
+        Row: {
+          claim_text: string
+          confidence_score: number | null
+          embedding: string | null
+          expires_at: string | null
+          id: string
+          rationale_chain: Json | null
+          sources_checked: string[] | null
+          verdict: string | null
+          verified_at: string | null
+        }
+        Insert: {
+          claim_text: string
+          confidence_score?: number | null
+          embedding?: string | null
+          expires_at?: string | null
+          id?: string
+          rationale_chain?: Json | null
+          sources_checked?: string[] | null
+          verdict?: string | null
+          verified_at?: string | null
+        }
+        Update: {
+          claim_text?: string
+          confidence_score?: number | null
+          embedding?: string | null
+          expires_at?: string | null
+          id?: string
+          rationale_chain?: Json | null
+          sources_checked?: string[] | null
+          verdict?: string | null
+          verified_at?: string | null
         }
         Relationships: []
       }
@@ -245,6 +284,42 @@ export type Database = {
         }
         Relationships: []
       }
+      collector_configs: {
+        Row: {
+          collector_name: string
+          config: Json
+          created_at: string | null
+          enabled: boolean | null
+          id: string
+          interval_minutes: number
+          last_run_at: string | null
+          last_run_events: number | null
+          last_run_status: string | null
+        }
+        Insert: {
+          collector_name: string
+          config?: Json
+          created_at?: string | null
+          enabled?: boolean | null
+          id?: string
+          interval_minutes: number
+          last_run_at?: string | null
+          last_run_events?: number | null
+          last_run_status?: string | null
+        }
+        Update: {
+          collector_name?: string
+          config?: Json
+          created_at?: string | null
+          enabled?: boolean | null
+          id?: string
+          interval_minutes?: number
+          last_run_at?: string | null
+          last_run_events?: number | null
+          last_run_status?: string | null
+        }
+        Relationships: []
+      }
       counterfactual_cache: {
         Row: {
           article_id: string
@@ -289,6 +364,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      fact_checker_configs: {
+        Row: {
+          check_type: string
+          checker_name: string
+          created_at: string | null
+          enabled: boolean | null
+          grok_system_prompt: string | null
+          id: string
+          skill_version: string | null
+          tools_config: Json | null
+          updated_at: string | null
+        }
+        Insert: {
+          check_type: string
+          checker_name: string
+          created_at?: string | null
+          enabled?: boolean | null
+          grok_system_prompt?: string | null
+          id?: string
+          skill_version?: string | null
+          tools_config?: Json | null
+          updated_at?: string | null
+        }
+        Update: {
+          check_type?: string
+          checker_name?: string
+          created_at?: string | null
+          enabled?: boolean | null
+          grok_system_prompt?: string | null
+          id?: string
+          skill_version?: string | null
+          tools_config?: Json | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       hitl_reviews: {
         Row: {
@@ -339,6 +450,143 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      intake_queue: {
+        Row: {
+          area: string
+          auditor_result: Json | null
+          auditor_score: number | null
+          claims: Json | null
+          content: string
+          created_at: string
+          editor_decision: string | null
+          editor_scores: Json | null
+          error_message: string | null
+          fact_check_summary: Json | null
+          id: string
+          language: string
+          metadata: Json | null
+          priority: string | null
+          processed_article_id: string | null
+          processed_at: string | null
+          rationale: Json | null
+          received_at: string
+          score: number
+          source_event_id: string | null
+          sources: Json | null
+          status: string
+          title: string
+          url: string | null
+        }
+        Insert: {
+          area: string
+          auditor_result?: Json | null
+          auditor_score?: number | null
+          claims?: Json | null
+          content: string
+          created_at?: string
+          editor_decision?: string | null
+          editor_scores?: Json | null
+          error_message?: string | null
+          fact_check_summary?: Json | null
+          id?: string
+          language?: string
+          metadata?: Json | null
+          priority?: string | null
+          processed_article_id?: string | null
+          processed_at?: string | null
+          rationale?: Json | null
+          received_at?: string
+          score?: number
+          source_event_id?: string | null
+          sources?: Json | null
+          status?: string
+          title: string
+          url?: string | null
+        }
+        Update: {
+          area?: string
+          auditor_result?: Json | null
+          auditor_score?: number | null
+          claims?: Json | null
+          content?: string
+          created_at?: string
+          editor_decision?: string | null
+          editor_scores?: Json | null
+          error_message?: string | null
+          fact_check_summary?: Json | null
+          id?: string
+          language?: string
+          metadata?: Json | null
+          priority?: string | null
+          processed_article_id?: string | null
+          processed_at?: string | null
+          rationale?: Json | null
+          received_at?: string
+          score?: number
+          source_event_id?: string | null
+          sources?: Json | null
+          status?: string
+          title?: string
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "intake_queue_processed_article_id_fkey"
+            columns: ["processed_article_id"]
+            isOneToOne: false
+            referencedRelation: "articles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pipeline_runs: {
+        Row: {
+          completed_at: string | null
+          cost_usd: number | null
+          created_at: string | null
+          error_message: string | null
+          events_in: number | null
+          events_out: number | null
+          id: string
+          metadata: Json | null
+          stage: string
+          started_at: string | null
+          status: string
+          token_input: number | null
+          token_output: number | null
+        }
+        Insert: {
+          completed_at?: string | null
+          cost_usd?: number | null
+          created_at?: string | null
+          error_message?: string | null
+          events_in?: number | null
+          events_out?: number | null
+          id?: string
+          metadata?: Json | null
+          stage: string
+          started_at?: string | null
+          status?: string
+          token_input?: number | null
+          token_output?: number | null
+        }
+        Update: {
+          completed_at?: string | null
+          cost_usd?: number | null
+          created_at?: string | null
+          error_message?: string | null
+          events_in?: number | null
+          events_out?: number | null
+          id?: string
+          metadata?: Json | null
+          stage?: string
+          started_at?: string | null
+          status?: string
+          token_input?: number | null
+          token_output?: number | null
+        }
+        Relationships: []
       }
       rationale_chains: {
         Row: {
@@ -400,6 +648,173 @@ export type Database = {
           },
         ]
       }
+      raw_events: {
+        Row: {
+          content: string
+          created_at: string | null
+          event_hash: string
+          fetched_at: string | null
+          id: string
+          processed: boolean | null
+          published_at: string | null
+          raw_metadata: Json | null
+          source_collector: string
+          title: string
+          url: string | null
+        }
+        Insert: {
+          content: string
+          created_at?: string | null
+          event_hash: string
+          fetched_at?: string | null
+          id?: string
+          processed?: boolean | null
+          published_at?: string | null
+          raw_metadata?: Json | null
+          source_collector: string
+          title: string
+          url?: string | null
+        }
+        Update: {
+          content?: string
+          created_at?: string | null
+          event_hash?: string
+          fetched_at?: string | null
+          id?: string
+          processed?: boolean | null
+          published_at?: string | null
+          raw_metadata?: Json | null
+          source_collector?: string
+          title?: string
+          url?: string | null
+        }
+        Relationships: []
+      }
+      reporter_configs: {
+        Row: {
+          area: string
+          created_at: string | null
+          enabled: boolean | null
+          grok_system_prompt: string | null
+          id: string
+          keywords: string[]
+          max_per_batch: number | null
+          priority_collectors: string[]
+          skill_version: string | null
+          threshold: number
+          updated_at: string | null
+        }
+        Insert: {
+          area: string
+          created_at?: string | null
+          enabled?: boolean | null
+          grok_system_prompt?: string | null
+          id?: string
+          keywords: string[]
+          max_per_batch?: number | null
+          priority_collectors: string[]
+          skill_version?: string | null
+          threshold?: number
+          updated_at?: string | null
+        }
+        Update: {
+          area?: string
+          created_at?: string | null
+          enabled?: boolean | null
+          grok_system_prompt?: string | null
+          id?: string
+          keywords?: string[]
+          max_per_batch?: number | null
+          priority_collectors?: string[]
+          skill_version?: string | null
+          threshold?: number
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      scored_events: {
+        Row: {
+          area: string
+          created_at: string | null
+          curated: boolean | null
+          curator_batch_id: string | null
+          curator_rank: number | null
+          id: string
+          matched_keywords: string[] | null
+          raw_event_id: string
+          reporter_score: number
+        }
+        Insert: {
+          area: string
+          created_at?: string | null
+          curated?: boolean | null
+          curator_batch_id?: string | null
+          curator_rank?: number | null
+          id?: string
+          matched_keywords?: string[] | null
+          raw_event_id: string
+          reporter_score: number
+        }
+        Update: {
+          area?: string
+          created_at?: string | null
+          curated?: boolean | null
+          curator_batch_id?: string | null
+          curator_rank?: number | null
+          id?: string
+          matched_keywords?: string[] | null
+          raw_event_id?: string
+          reporter_score?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scored_events_raw_event_id_fkey"
+            columns: ["raw_event_id"]
+            isOneToOne: false
+            referencedRelation: "raw_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      source_credibility: {
+        Row: {
+          bias_flags: string[] | null
+          category: string | null
+          created_at: string | null
+          domain: string
+          id: string
+          name: string
+          notes: string | null
+          tier: number
+          updated_at: string | null
+          weight: number
+        }
+        Insert: {
+          bias_flags?: string[] | null
+          category?: string | null
+          created_at?: string | null
+          domain: string
+          id?: string
+          name: string
+          notes?: string | null
+          tier: number
+          updated_at?: string | null
+          weight: number
+        }
+        Update: {
+          bias_flags?: string[] | null
+          category?: string | null
+          created_at?: string | null
+          domain?: string
+          id?: string
+          name?: string
+          notes?: string | null
+          tier?: number
+          updated_at?: string | null
+          weight?: number
+        }
+        Relationships: []
+      }
       sources: {
         Row: {
           content_hash: string
@@ -445,13 +860,48 @@ export type Database = {
         }
         Relationships: []
       }
+      token_logs: {
+        Row: {
+          cached_tokens: number | null
+          call_name: string
+          cost_usd: number | null
+          id: string
+          input_tokens: number | null
+          model: string | null
+          output_tokens: number | null
+          priority: string | null
+          timestamp: string | null
+        }
+        Insert: {
+          cached_tokens?: number | null
+          call_name: string
+          cost_usd?: number | null
+          id?: string
+          input_tokens?: number | null
+          model?: string | null
+          output_tokens?: number | null
+          priority?: string | null
+          timestamp?: string | null
+        }
+        Update: {
+          cached_tokens?: number | null
+          call_name?: string
+          cost_usd?: number | null
+          id?: string
+          input_tokens?: number | null
+          model?: string | null
+          output_tokens?: number | null
+          priority?: string | null
+          timestamp?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      show_limit: { Args: never; Returns: number }
-      show_trgm: { Args: { "": string }; Returns: string[] }
+      [_ in never]: never
     }
     Enums: {
       [_ in never]: never

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Playfair_Display } from "next/font/google";
 import "./globals.css";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
@@ -10,13 +10,19 @@ const inter = Inter({
   subsets: ["latin", "latin-ext"],
 });
 
+const playfair = Playfair_Display({
+  variable: "--font-playfair",
+  subsets: ["latin", "latin-ext"],
+  weight: ["400", "500", "600", "700", "800", "900"],
+});
+
 export const metadata: Metadata = {
   title: {
     default: "Curador de Noticias",
     template: "%s | Curador de Noticias",
   },
   description:
-    "Plataforma de jornalismo assistido por IA com transparencia total. Cada artigo mostra fontes, raciocinio e nivel de confianca.",
+    "Plataforma de jornalismo feito por IA de forma independente. Cada artigo mostra fontes, raciocinio e nivel de confianca.",
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
   ),
@@ -50,7 +56,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${inter.variable} font-sans antialiased bg-white text-gray-900 dark:bg-gray-950 dark:text-gray-100 transition-colors duration-200`}
+        className={`${inter.variable} ${playfair.variable} font-sans antialiased`}
       >
         <ThemeProvider>
           <div className="flex min-h-screen flex-col">

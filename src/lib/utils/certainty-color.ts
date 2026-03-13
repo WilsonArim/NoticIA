@@ -62,3 +62,52 @@ export function getCertaintyLabel(score: number): string {
 export function formatCertaintyPercent(score: number): string {
   return `${Math.round(score * 100)}%`;
 }
+
+/**
+ * Returns HSL color string where hue shifts from red (0) → green (142)
+ * and lightness increases with score (brighter = more certain).
+ */
+export function getCertaintyHSL(score: number): string {
+  const hue = Math.round(score * 142);
+  const saturation = 70;
+  const lightness = Math.round(35 + score * 25); // 35→60
+  return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+}
+
+/**
+ * Returns a box-shadow glow string proportional to the certainty score.
+ * Used by GlowCard to make high-certainty articles visually brighter.
+ */
+export function getCertaintyGlow(score: number): string {
+  const color = getCertaintyHSL(score);
+  const intensity = Math.round(score * 20);
+  const spread = Math.round(score * 8);
+  return `0 0 ${intensity}px ${spread}px ${color.replace(")", ", 0.25)")}`;
+}
+
+/**
+ * Returns a CSS gradient string for background accents.
+ */
+export function getCertaintyGradient(score: number): string {
+  const hue = Math.round(score * 142);
+  return `linear-gradient(135deg, hsl(${hue}, 70%, 95%), hsl(${hue}, 70%, 85%))`;
+}
+
+/**
+ * Returns the area color CSS variable name.
+ */
+export function getAreaColor(area: string): string {
+  const normalized = area.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const areaMap: Record<string, string> = {
+    politica: "var(--area-politica)",
+    economia: "var(--area-economia)",
+    tecnologia: "var(--area-tecnologia)",
+    saude: "var(--area-saude)",
+    ciencia: "var(--area-ciencia)",
+    sociedade: "var(--area-sociedade)",
+    cultura: "var(--area-cultura)",
+    desporto: "var(--area-desporto)",
+    mundo: "var(--area-mundo)",
+  };
+  return areaMap[normalized] || "var(--area-default)";
+}

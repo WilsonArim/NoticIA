@@ -3,8 +3,13 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { CertaintyIndex } from "@/components/article/CertaintyIndex";
 import { ClaimReviewBadge } from "@/components/article/ClaimReviewBadge";
-import { SourcesList } from "@/components/article/SourcesList";
+import { SourceConstellation } from "@/components/article/SourceConstellation";
+import { RationaleRiver } from "@/components/article/RationaleRiver";
+import { AreaChip } from "@/components/ui/AreaChip";
+import { GlowCard } from "@/components/ui/GlowCard";
 import { formatFullDate, toISOString } from "@/lib/utils/format-date";
+import { getAreaColor, getCertaintyHSL } from "@/lib/utils/certainty-color";
+import type { Source } from "@/types/source";
 
 export const revalidate = 60;
 
@@ -44,7 +49,6 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
   const { slug } = await params;
   const supabase = await createClient();
 
-  // Fetch article
   const { data: article, error } = await supabase
     .from("articles")
     .select("*")
@@ -57,7 +61,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
     notFound();
   }
 
-  // Fetch claims with sources
+  // Fetch claims
   const { data: articleClaims } = await supabase
     .from("article_claims")
     .select(
@@ -72,12 +76,15 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
     .eq("article_id", article.id)
     .order("position", { ascending: true });
 
-  // Fetch all claim_sources for these claims
+  // Fetch claim_sources
   const claimIds = (articleClaims || [])
     .map((ac) => (ac.claim as unknown as { id: string })?.id)
     .filter(Boolean);
 
-  let claimSources: Record<string, Array<{ source: Record<string, unknown>; supports: boolean; excerpt: string | null }>> = {};
+  let claimSources: Record<
+    string,
+    Array<{ source: Record<string, unknown>; supports: boolean; excerpt: string | null }>
+  > = {};
   if (claimIds.length > 0) {
     const { data: cs } = await supabase
       .from("claim_sources")
@@ -91,7 +98,6 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
       )
       .in("claim_id", claimIds);
 
-    // Group by claim_id
     claimSources = (cs || []).reduce(
       (acc, item) => {
         if (!acc[item.claim_id]) acc[item.claim_id] = [];
@@ -113,7 +119,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
     .eq("article_id", article.id)
     .order("step_order", { ascending: true });
 
-  // Build JSON-LD for ClaimReview schema.org
+  // JSON-LD
   const claimReviewJsonLd =
     articleClaims && articleClaims.length > 0
       ? {
@@ -121,11 +127,9 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
           "@type": "ClaimReview",
           url: `${process.env.NEXT_PUBLIC_SITE_URL || ""}/articles/${article.slug}`,
           claimReviewed:
-            (articleClaims[0]?.claim as unknown as { original_text: string })?.original_text || article.title,
-          author: {
-            "@type": "Organization",
-            name: "Curador de Noticias",
-          },
+            (articleClaims[0]?.claim as unknown as { original_text: string })
+              ?.original_text || article.title,
+          author: { "@type": "Organization", name: "Curador de Noticias" },
           reviewRating: {
             "@type": "Rating",
             ratingValue: Math.round(article.certainty_score * 5),
@@ -136,7 +140,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
         }
       : null;
 
-  // Collect all unique sources from claims for the SourcesList
+  // Unique sources
   const allSources = Object.values(claimSources).flat();
   const uniqueSourcesMap = new Map<string, (typeof allSources)[0]>();
   for (const s of allSources) {
@@ -147,9 +151,10 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
   }
   const uniqueSources = Array.from(uniqueSourcesMap.values());
 
+  const areaColor = getAreaColor(article.area);
+
   return (
     <>
-      {/* JSON-LD structured data */}
       {claimReviewJsonLd && (
         <script
           type="application/ld+json"
@@ -158,74 +163,105 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
       )}
 
       <article className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
-        {/* Article header */}
-        <header className="mb-8">
+        {/* ── Header ── */}
+        <header className="mb-10">
+          {/* Area accent line */}
+          <div
+            className="mb-6 h-1 w-16 rounded-full"
+            style={{ background: areaColor }}
+          />
+
           <div className="mb-4 flex flex-wrap items-center gap-3">
-            <span className="rounded-md bg-blue-50 px-2.5 py-1 text-sm font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-400">
-              {article.area}
-            </span>
+            <AreaChip area={article.area} size="md" />
             {article.tags &&
               article.tags.map((tag: string) => (
                 <span
                   key={tag}
-                  className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+                  className="rounded-full px-2 py-0.5 text-xs font-medium"
+                  style={{
+                    color: "var(--text-tertiary)",
+                    background: "var(--surface-secondary)",
+                  }}
                 >
                   {tag}
                 </span>
               ))}
           </div>
 
-          <h1 className="text-3xl font-bold leading-tight text-gray-900 dark:text-gray-50 sm:text-4xl">
+          <h1
+            className="font-serif text-3xl font-bold leading-tight tracking-tight sm:text-4xl lg:text-5xl"
+            style={{ color: "var(--text-primary)" }}
+          >
             {article.title}
           </h1>
 
           {article.subtitle && (
-            <p className="mt-2 text-xl text-gray-600 dark:text-gray-400">
+            <p
+              className="mt-3 text-xl leading-relaxed"
+              style={{ color: "var(--text-secondary)" }}
+            >
               {article.subtitle}
             </p>
           )}
 
-          <div className="mt-4 flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
+          <div
+            className="mt-4 flex items-center gap-4 text-sm"
+            style={{ color: "var(--text-tertiary)" }}
+          >
             {article.published_at && (
               <time dateTime={toISOString(article.published_at)}>
                 {formatFullDate(article.published_at)}
               </time>
             )}
-            <span className="text-gray-300 dark:text-gray-600">|</span>
-            <span>{article.language === "pt" ? "Portugues" : article.language}</span>
+            <span style={{ color: "var(--border-primary)" }}>|</span>
+            <span>
+              {article.language === "pt" ? "Portugues" : article.language}
+            </span>
           </div>
 
-          {/* Certainty Index */}
-          <div className="mt-6 max-w-sm">
-            <p className="mb-1 text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+          {/* Certainty */}
+          <div className="mt-6 flex items-center gap-4">
+            <CertaintyIndex score={article.certainty_score} size="lg" showLabel />
+            <span
+              className="text-xs font-medium uppercase tracking-wider"
+              style={{ color: "var(--text-tertiary)" }}
+            >
               Indice de Confianca
-            </p>
-            <CertaintyIndex score={article.certainty_score} size="lg" />
+            </span>
           </div>
         </header>
 
-        {/* Lead */}
+        {/* ── Lead ── */}
         {article.lead && (
-          <p className="mb-8 border-l-4 border-blue-500 pl-4 text-lg font-medium leading-relaxed text-gray-700 dark:text-gray-300">
+          <p
+            className="mb-10 border-l-4 pl-5 text-lg font-medium leading-relaxed"
+            style={{
+              borderColor: areaColor,
+              color: "var(--text-secondary)",
+            }}
+          >
             {article.lead}
           </p>
         )}
 
-        {/* Article body */}
+        {/* ── Body ── */}
         <div className="prose prose-lg max-w-none dark:prose-invert">
           {article.body_html ? (
             <div dangerouslySetInnerHTML={{ __html: article.body_html }} />
           ) : (
-            article.body.split("\n\n").map((paragraph: string, i: number) => (
-              <p key={i}>{paragraph}</p>
-            ))
+            article.body
+              .split("\n\n")
+              .map((paragraph: string, i: number) => <p key={i}>{paragraph}</p>)
           )}
         </div>
 
-        {/* Claims section */}
+        {/* ── Camada "Esqueleto": Claims ── */}
         {articleClaims && articleClaims.length > 0 && (
-          <section className="mt-12 rounded-xl border border-gray-200 p-6 dark:border-gray-800">
-            <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-gray-100">
+          <section className="mt-14">
+            <h2
+              className="mb-5 font-serif text-xl font-semibold"
+              style={{ color: "var(--text-primary)" }}
+            >
               Factos Verificados ({articleClaims.length})
             </h2>
             <div className="space-y-4">
@@ -240,93 +276,91 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
                   confidence_score: number | null;
                 };
                 if (!claim) return null;
+                const glowColor = claim.confidence_score
+                  ? getCertaintyHSL(claim.confidence_score)
+                  : "var(--border-primary)";
+
                 return (
-                  <div
+                  <GlowCard
                     key={claim.id || i}
-                    className="rounded-lg border border-gray-100 p-4 dark:border-gray-800"
+                    certainty={claim.confidence_score ?? 0.5}
+                    className="space-y-3"
                   >
-                    <div className="mb-2 flex items-start gap-2">
+                    <div className="flex items-start justify-between gap-2">
                       <ClaimReviewBadge status={claim.verification_status} />
                       {claim.confidence_score !== null && (
-                        <span className="text-xs text-gray-400">
+                        <span
+                          className="text-xs font-semibold tabular-nums"
+                          style={{ color: glowColor }}
+                        >
                           {Math.round(claim.confidence_score * 100)}%
                         </span>
                       )}
                     </div>
-                    <p className="text-sm text-gray-700 dark:text-gray-300">
+                    <p
+                      className="text-sm leading-relaxed"
+                      style={{ color: "var(--text-secondary)" }}
+                    >
                       {claim.original_text}
                     </p>
-                    {/* S-A-O Triplet */}
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      <span className="rounded bg-purple-50 px-1.5 py-0.5 text-xs font-medium text-purple-700 dark:bg-purple-950 dark:text-purple-400">
+                    {/* S-P-O Triplet */}
+                    <div className="flex flex-wrap gap-1.5">
+                      <span
+                        className="rounded-full px-2 py-0.5 text-xs font-medium"
+                        style={{
+                          color: "var(--area-ciencia)",
+                          background:
+                            "color-mix(in srgb, var(--area-ciencia) 12%, transparent)",
+                        }}
+                      >
                         S: {claim.subject}
                       </span>
-                      <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-400">
+                      <span
+                        className="rounded-full px-2 py-0.5 text-xs font-medium"
+                        style={{
+                          color: "var(--area-tecnologia)",
+                          background:
+                            "color-mix(in srgb, var(--area-tecnologia) 12%, transparent)",
+                        }}
+                      >
                         P: {claim.predicate}
                       </span>
-                      <span className="rounded bg-cyan-50 px-1.5 py-0.5 text-xs font-medium text-cyan-700 dark:bg-cyan-950 dark:text-cyan-400">
+                      <span
+                        className="rounded-full px-2 py-0.5 text-xs font-medium"
+                        style={{
+                          color: "var(--area-saude)",
+                          background:
+                            "color-mix(in srgb, var(--area-saude) 12%, transparent)",
+                        }}
+                      >
                         O: {claim.object}
                       </span>
                     </div>
-                  </div>
+                  </GlowCard>
                 );
               })}
             </div>
           </section>
         )}
 
-        {/* Sources section */}
+        {/* ── Camada "Nervos": Sources ── */}
         {uniqueSources.length > 0 && (
-          <section className="mt-8 rounded-xl border border-gray-200 p-6 dark:border-gray-800">
-            <SourcesList
+          <div className="mt-14">
+            <SourceConstellation
               sources={uniqueSources.map((s) => ({
-                source: s.source as unknown as import("@/types/source").Source,
+                source: s.source as unknown as Source,
                 supports: s.supports,
                 excerpt: s.excerpt,
               }))}
             />
-          </section>
+          </div>
         )}
 
-        {/* Rationale Chain preview */}
+        {/* ── Camada "Raciocinio": Rationale ── */}
         {rationaleChains && rationaleChains.length > 0 && (
-          <section className="mt-8 rounded-xl border border-gray-200 p-6 dark:border-gray-800">
-            <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-gray-100">
-              Raciocinio da Pipeline ({rationaleChains.length} passos)
-            </h2>
-            <div className="space-y-3">
-              {rationaleChains.map((step) => (
-                <div
-                  key={step.id}
-                  className="flex gap-3 rounded-lg border border-gray-100 p-3 dark:border-gray-800"
-                >
-                  <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-blue-700 dark:bg-blue-950 dark:text-blue-400">
-                    {step.step_order + 1}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                        {step.agent_name}
-                      </span>
-                      {step.token_count && (
-                        <span className="text-xs text-gray-400">
-                          {step.token_count} tokens
-                        </span>
-                      )}
-                      {step.duration_ms && (
-                        <span className="text-xs text-gray-400">
-                          {step.duration_ms}ms
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                      {step.reasoning_text}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
+          <div className="mt-14">
+            <RationaleRiver steps={rationaleChains} />
+          </div>
         )}
       </article>
     </>

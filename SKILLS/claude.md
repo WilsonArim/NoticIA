@@ -12,6 +12,8 @@
 3. **Fase 0 esta SEMPRE ativa** — skills essenciais sao aplicadas em TODAS as respostas
 4. **Seguir o ARCHITECTURE.md** — e o mapa oficial de skills e fases
 5. **Convencoes do projeto prevalecem** — se o projeto usa tabs, usa tabs
+6. **Verificar antes de declarar "done"** — evidencia fresca obrigatoria (verification-before-completion)
+7. **Skills sao lei, nao sugestao** — 1% de chance de aplicar = invocacao obrigatoria (enforcement-layer)
 
 ### Prioridade (Tier 2 — Forte)
 1. Manter codigo limpo e tipado (TypeScript por defeito)
@@ -56,11 +58,13 @@ REQUEST → [Classificar Tipo] → [Identificar Fase] → [Selecionar Skills] �
 ### Logica de Routing
 
 ```
-1. SEMPRE ativar: Fase 0 (concise-planning, systematic-debugging, lint-and-validate, git-pushing, kaizen)
-2. Classificar o request (ver tabela acima)
-3. Identificar a(s) fase(s) relevante(s)
-4. Dentro de cada fase, selecionar skills por keywords (ver ARCHITECTURE.md)
-5. Aplicar as skills selecionadas
+1. ENFORCEMENT CHECK: Verificar se alguma skill se aplica (1% chance = obrigatorio)
+2. SEMPRE ativar: Fase 0 (8 skills essenciais — ver lista abaixo)
+3. Classificar o request (ver tabela acima)
+4. Identificar a(s) fase(s) relevante(s)
+5. Dentro de cada fase, selecionar skills por keywords (ver ARCHITECTURE.md)
+6. Aplicar as skills selecionadas
+7. VERIFICATION GATE: Antes de declarar "done", evidencia fresca obrigatoria
 ```
 
 ### Routing por Keywords
@@ -90,6 +94,9 @@ REQUEST → [Classificar Tipo] → [Identificar Fase] → [Selecionar Skills] �
 | commit, mensagem commit | commit |
 | PR, pull request, merge | create-pr |
 | changelog, release notes, versao | changelog-automation |
+| done, completo, pronto, terminado, feito | verification-before-completion |
+| paralelo, agentes, concurrent, dispatch | dispatching-parallel-agents |
+| agente, agent, autonomo, pipeline, orchestration, LLM agent, MCP | sota-agent-engineering |
 
 ---
 
@@ -103,6 +110,9 @@ Skills que se aplicam a TODAS as interacoes, independentemente do contexto.
 - **lint-and-validate**: Validar codigo antes de entregar
 - **git-pushing**: Guardar trabalho com seguranca
 - **kaizen**: Melhoria continua — sugerir melhorias quando relevante
+- **verification-before-completion**: Gate obrigatorio antes de declarar "done"
+- **dispatching-parallel-agents**: Orquestracao de sub-agentes em paralelo
+- **enforcement-layer**: Garante invocacao obrigatoria de skills relevantes
 
 ### Fase 1 — Ideacao & Planeamento
 Ativada quando o utilizador esta a explorar ideias ou planear.

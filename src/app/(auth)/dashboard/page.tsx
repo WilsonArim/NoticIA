@@ -1,9 +1,19 @@
 import { createClient } from "@/lib/supabase/server";
 import type { Metadata } from "next";
 import Link from "next/link";
+import {
+  Newspaper,
+  AlertCircle,
+  Zap,
+  DollarSign,
+  Bot,
+  ArrowRight,
+} from "lucide-react";
+import { StatsCard } from "@/components/dashboard/StatsCard";
+import { PipelineChart } from "@/components/dashboard/PipelineChart";
 
 export const metadata: Metadata = {
-  title: "Dashboard",
+  title: "Observatorio",
   description: "Monitorizar agentes e pipeline do Curador de Noticias.",
 };
 
@@ -12,28 +22,36 @@ export const revalidate = 30;
 export default async function DashboardPage() {
   const supabase = await createClient();
 
-  // Fetch agent stats (last 24h)
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
   const [
     { data: agentLogs },
-    { data: articles, count: articlesCount },
-    { data: pendingReviews, count: reviewCount },
+    { count: articlesCount },
+    { count: reviewCount },
+    { data: chartLogs },
   ] = await Promise.all([
     supabase
       .from("agent_logs")
-      .select("agent_name, event_type, cost_usd, token_input, token_output, created_at")
+      .select(
+        "agent_name, event_type, cost_usd, token_input, token_output, created_at",
+      )
       .gte("created_at", since)
       .order("created_at", { ascending: false })
       .limit(100),
     supabase
       .from("articles")
-      .select("id", { count: "exact" })
+      .select("id", { count: "exact", head: true })
       .eq("status", "published"),
     supabase
       .from("hitl_reviews")
-      .select("id", { count: "exact" })
+      .select("id", { count: "exact", head: true })
       .eq("status", "pending"),
+    supabase
+      .from("agent_logs")
+      .select("created_at, event_type")
+      .gte("created_at", since7d)
+      .order("created_at", { ascending: true }),
   ]);
 
   // Aggregate agent stats
@@ -66,20 +84,47 @@ export default async function DashboardPage() {
     0,
   );
 
+  // Build chart data (group by day)
+  const chartData: Record<
+    string,
+    { articles: number; claims: number; reviews: number }
+  > = {};
+  for (const log of chartLogs || []) {
+    const day = new Date(log.created_at).toLocaleDateString("pt-PT", {
+      day: "2-digit",
+      month: "2-digit",
+    });
+    if (!chartData[day])
+      chartData[day] = { articles: 0, claims: 0, reviews: 0 };
+    if (log.event_type?.includes("article")) chartData[day].articles++;
+    else if (log.event_type?.includes("claim")) chartData[day].claims++;
+    else if (log.event_type?.includes("review")) chartData[day].reviews++;
+    else chartData[day].articles++;
+  }
+  const chartArray = Object.entries(chartData).map(([date, vals]) => ({
+    date,
+    ...vals,
+  }));
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      {/* Header */}
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-50">
-            Dashboard
+          <h1
+            className="font-serif text-3xl font-bold"
+            style={{ color: "var(--text-primary)" }}
+          >
+            Observatorio
           </h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          <p className="mt-1 text-sm" style={{ color: "var(--text-tertiary)" }}>
             Monitorizacao dos agentes (ultimas 24h)
           </p>
         </div>
         <Link
           href="/review"
-          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+          className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
+          style={{ background: "var(--accent)" }}
         >
           Fila de Revisao
           {(reviewCount || 0) > 0 && (
@@ -87,72 +132,134 @@ export default async function DashboardPage() {
               {reviewCount}
             </span>
           )}
+          <ArrowRight size={14} />
         </Link>
       </div>
 
-      {/* Summary cards */}
+      {/* Stats Grid */}
       <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <SummaryCard
+        <StatsCard
           label="Artigos Publicados"
-          value={String(articlesCount || 0)}
+          value={articlesCount || 0}
+          icon={<Newspaper size={20} />}
+          accent="var(--area-tecnologia)"
         />
-        <SummaryCard
+        <StatsCard
           label="Revisoes Pendentes"
-          value={String(reviewCount || 0)}
-          highlight={
-            (reviewCount || 0) > 0 ? "text-orange-600 dark:text-orange-400" : undefined
+          value={reviewCount || 0}
+          icon={<AlertCircle size={20} />}
+          accent={
+            (reviewCount || 0) > 0 ? "var(--area-politica)" : "var(--accent)"
           }
         />
-        <SummaryCard
+        <StatsCard
           label="Tokens (24h)"
-          value={totalTokens.toLocaleString("pt-PT")}
+          value={totalTokens}
+          format={(n) =>
+            n >= 1000 ? `${(n / 1000).toFixed(1)}k` : n.toLocaleString()
+          }
+          icon={<Zap size={20} />}
+          accent="var(--area-ciencia)"
         />
-        <SummaryCard
+        <StatsCard
           label="Custo (24h)"
-          value={`$${totalCost.toFixed(4)}`}
+          value={totalCost}
+          format={(n) => `$${n.toFixed(4)}`}
+          icon={<DollarSign size={20} />}
+          accent="var(--area-economia)"
         />
       </div>
 
-      {/* Agent grid */}
-      <section>
-        <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-gray-100">
+      {/* Pipeline Chart */}
+      <section className="mb-8">
+        <h2
+          className="mb-4 font-serif text-xl font-semibold"
+          style={{ color: "var(--text-primary)" }}
+        >
+          Atividade da Pipeline (7 dias)
+        </h2>
+        <div className="glow-card p-5">
+          <PipelineChart data={chartArray} />
+        </div>
+      </section>
+
+      {/* Agent Grid */}
+      <section className="mb-8">
+        <h2
+          className="mb-4 font-serif text-xl font-semibold"
+          style={{ color: "var(--text-primary)" }}
+        >
           Agentes Ativos
         </h2>
         {Object.keys(agentStats).length === 0 ? (
-          <div className="rounded-xl border border-dashed border-gray-300 py-12 text-center text-gray-500 dark:border-gray-700 dark:text-gray-400">
+          <div
+            className="glow-card flex items-center justify-center py-12 text-sm"
+            style={{ color: "var(--text-tertiary)" }}
+          >
+            <Bot size={20} className="mr-2 opacity-50" />
             Nenhuma atividade de agentes nas ultimas 24h.
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {Object.entries(agentStats).map(([name, stats]) => (
-              <div
-                key={name}
-                className="rounded-xl border border-gray-200 p-4 dark:border-gray-800"
-              >
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                    {name}
-                  </span>
-                  <span className="h-2 w-2 rounded-full bg-green-500" />
+              <div key={name} className="glow-card p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Bot size={16} style={{ color: "var(--accent)" }} />
+                    <span
+                      className="text-sm font-semibold"
+                      style={{ color: "var(--text-primary)" }}
+                    >
+                      {name}
+                    </span>
+                  </div>
+                  <span
+                    className="h-2 w-2 rounded-full animate-pulse-glow"
+                    style={{ background: "var(--area-economia)" }}
+                  />
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <div>
-                    <div className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                    <div
+                      className="text-lg font-bold tabular-nums"
+                      style={{ color: "var(--text-primary)" }}
+                    >
                       {stats.events}
                     </div>
-                    <div className="text-xs text-gray-400">eventos</div>
+                    <div
+                      className="text-[11px]"
+                      style={{ color: "var(--text-tertiary)" }}
+                    >
+                      eventos
+                    </div>
                   </div>
                   <div>
-                    <div className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                    <div
+                      className="text-lg font-bold tabular-nums"
+                      style={{ color: "var(--text-primary)" }}
+                    >
                       {(stats.tokens / 1000).toFixed(1)}k
                     </div>
-                    <div className="text-xs text-gray-400">tokens</div>
+                    <div
+                      className="text-[11px]"
+                      style={{ color: "var(--text-tertiary)" }}
+                    >
+                      tokens
+                    </div>
                   </div>
                   <div>
-                    <div className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                    <div
+                      className="text-lg font-bold tabular-nums"
+                      style={{ color: "var(--text-primary)" }}
+                    >
                       ${stats.cost.toFixed(3)}
                     </div>
-                    <div className="text-xs text-gray-400">custo</div>
+                    <div
+                      className="text-[11px]"
+                      style={{ color: "var(--text-tertiary)" }}
+                    >
+                      custo
+                    </div>
                   </div>
                 </div>
               </div>
@@ -161,57 +268,51 @@ export default async function DashboardPage() {
         )}
       </section>
 
-      {/* Recent events */}
-      <section className="mt-8">
-        <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-gray-100">
+      {/* Recent Events */}
+      <section>
+        <h2
+          className="mb-4 font-serif text-xl font-semibold"
+          style={{ color: "var(--text-primary)" }}
+        >
           Eventos Recentes
         </h2>
         <div className="space-y-2">
-          {(agentLogs || []).slice(0, 10).map((log) => (
+          {(agentLogs || []).slice(0, 10).map((log, i) => (
             <div
-              key={log.created_at + log.agent_name}
-              className="flex items-center gap-3 rounded-lg border border-gray-100 p-3 text-sm dark:border-gray-800"
+              key={`${log.created_at}-${log.agent_name}-${i}`}
+              className="glow-card flex items-center gap-3 p-3 text-sm"
             >
-              <span className="w-24 font-medium text-gray-900 dark:text-gray-100">
+              <span
+                className="w-24 font-medium"
+                style={{ color: "var(--text-primary)" }}
+              >
                 {log.agent_name}
               </span>
               <span
-                className={`rounded px-1.5 py-0.5 text-xs font-medium ${
-                  log.event_type === "error"
-                    ? "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-400"
-                    : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
-                }`}
+                className="rounded-full px-2 py-0.5 text-xs font-medium"
+                style={{
+                  color:
+                    log.event_type === "error"
+                      ? "var(--area-politica)"
+                      : "var(--text-tertiary)",
+                  background:
+                    log.event_type === "error"
+                      ? "color-mix(in srgb, var(--area-politica) 12%, transparent)"
+                      : "var(--surface-secondary)",
+                }}
               >
                 {log.event_type}
               </span>
-              <span className="flex-1 text-gray-400">
+              <span
+                className="flex-1 text-right"
+                style={{ color: "var(--text-tertiary)" }}
+              >
                 {new Date(log.created_at).toLocaleTimeString("pt-PT")}
               </span>
             </div>
           ))}
         </div>
       </section>
-    </div>
-  );
-}
-
-function SummaryCard({
-  label,
-  value,
-  highlight,
-}: {
-  label: string;
-  value: string;
-  highlight?: string;
-}) {
-  return (
-    <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
-      <div className="text-sm text-gray-500 dark:text-gray-400">{label}</div>
-      <div
-        className={`mt-1 text-2xl font-bold ${highlight || "text-gray-900 dark:text-gray-100"}`}
-      >
-        {value}
-      </div>
     </div>
   );
 }

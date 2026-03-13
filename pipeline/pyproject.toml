@@ -1,0 +1,25 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "openclaw"
+version = "2.0.0"
+description = "OpenClaw News Pipeline — Autonomous news collection, curation, and fact-checking"
+requires-python = ">=3.11"
+dependencies = [
+    "httpx>=0.27",
+    "feedparser>=6.0",
+    "apscheduler>=3.10",
+    "sentence-transformers>=3.0",
+    "transformers>=4.40",
+    "torch>=2.0",
+    "supabase>=2.0",
+    "python-dotenv>=1.0",
+    "crawl4ai>=0.3",
+    "telethon>=1.34",
+    "python-whois>=0.9",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "ruff>=0.4"]
