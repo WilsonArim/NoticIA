@@ -1,17 +1,17 @@
 # Roadmap — Curador de Notícias
 
-## Estado Atual (v1 — 13 Mar 2026)
+## Estado Atual (v2 — 16 Mar 2026)
 
 ### Fontes Ativas (a funcionar)
-- **RSS** — 22 feeds (BBC, NYT, Al Jazeera, Reuters, Guardian, etc.)
+- **RSS** — 133 feeds (BBC, NYT, Al Jazeera, Reuters, Guardian, Lusa, RTP, + 120 regionais/especializados)
 - **GDELT v2** — 14 queries por área (API pública, sem key)
 - **Crawl4AI** — Enriquecimento on-demand (scraping de URLs)
+- **X/Twitter** — Via Cowork WebSearch (site:x.com), cada 30min, custo $0
 
 ### Fontes Inativas (código deployado, faltam API keys)
 - **Event Registry** — Falta `EVENT_REGISTRY_API_KEY` no Supabase secrets
 - **ACLED** — Falta `ACLED_API_KEY` + `ACLED_EMAIL`
 - **Telegram** — Falta `TELEGRAM_BOT_TOKEN` (criar via @BotFather)
-- **X (Twitter)** — Falta `X_BEARER_TOKEN` (plano Basic $100/mês ou Pro $5000/mês)
 
 ### Como ativar cada fonte
 Basta adicionar a secret no Supabase Dashboard → Settings → Edge Functions → Secrets:
@@ -36,10 +36,10 @@ Basta adicionar a secret no Supabase Dashboard → Settings → Edge Functions �
 - Testar cada coletor individualmente
 - **Impacto:** Triplica o número de fontes, melhor cobertura de conflitos (ACLED) e breaking news (Telegram)
 
-#### 2. Adicionar mais RSS feeds (+60 planeados)
-- Ver lista completa em `FONTES.md` secção "Fontes planeadas"
-- Priorizar: Financial Times, The Economist, Defense News, Lusa, RTP
-- Basta adicionar ao array de feeds na tabela `collector_configs`
+#### 2. Adicionar mais RSS feeds (+60 planeados) ✅ CONCLUIDO
+- ~~Ver lista completa em `FONTES.md` secção "Fontes planeadas"~~
+- **FEITO:** 133 feeds activos (BBC, NYT, Al Jazeera, Reuters, Guardian, Lusa, RTP, + 120 regionais/especializados)
+- Expansao concluida na Fase 3 (14/03/2026)
 
 #### 3. Expandir ferramentas do fact-check
 Testar se o endpoint `/v1/responses` aceita:
@@ -83,11 +83,10 @@ certainty = (
 - **Desvantagem:** Perde o peso do auditor humano (40%), que garante supervisão editorial
 - **Recomendação:** Manter fórmula atual para MVP, testar alternativa em A/B quando houver volume
 
-#### 6. Verificar preços Grok
-Confirmar em `docs.x.ai/pricing` os custos reais:
-- Modelo reasoning vs non-reasoning
-- Custo por tool call ($5/1000 chamadas?)
-- Atualizar `FACT-CHECKING.md` com valores confirmados
+#### 6. Verificar preços Grok ✅ ELIMINADO
+~~Confirmar em `docs.x.ai/pricing` os custos reais:~~
+- **NOTA HISTORICA:** Grok API foi ELIMINADO em Marco 2026. Todo o processamento LLM migrado para Cowork (Claude, $0/mes). Edge Functions Grok mantidas como backup (@deprecated), nao chamadas em producao.
+- Custos Grok ja nao se aplicam — ver seccao "Migracao Grok → Cowork" abaixo
 
 ### Prioridade Baixa
 
@@ -131,3 +130,7 @@ from xai_sdk.tools import web_search, x_search
 
 ### Writer-publisher: mantém `/v1/chat/completions`
 O writer não precisa de tools — usa `response_format: json_schema` para output estruturado, que funciona perfeitamente no endpoint antigo.
+
+### Migração Grok → Cowork (Março 2026)
+Todo o processamento LLM foi migrado de Grok API (pago) para Cowork scheduled tasks (Claude, incluido na subscricao). Custo total LLM: $0/mes.
+Edge Functions Grok mantidas como backup (@deprecated), nao chamadas em producao.

@@ -1,7 +1,7 @@
 # ARCHITECTURE MASTER — Curador de Noticias
 
 > Documento de referencia completa do sistema. Todos os agentes, as suas funcoes, inputs/outputs, dependencias e sequencia de construcao.
-> Ultima atualizacao: 2026-03-14
+> Ultima atualizacao: 2026-03-16
 
 ---
 
@@ -255,7 +255,7 @@ Output: Artigos de opiniao/analise para seccao dedicada no frontend
 - **Memoria longa:** Acesso estruturado a `articles` com filtros por area e data (semanas/meses)
 - **Briefing semanal:** Mecanismo que condensa artigos da semana antes do cronista escrever
 - **Personalidade persistente:** System prompt com identidade, estilo e vies definidos
-- **Estado:** NAO IMPLEMENTADO — fase final de construcao
+- **Estado:** IMPLEMENTADO (Edge Function cronista v2 + frontend cronistas section + scheduled task Cowork pendente)
 
 ### CAMADA 6.5 — Agente Explorador de Fontes (1 agente)
 
@@ -389,29 +389,31 @@ CREATE TABLE chronicles (
 
 ## 4. EDGE FUNCTIONS EXISTENTES
 
-| Slug | Funcao | JWT | Estado |
-|------|--------|-----|--------|
-| collect-rss | Recolhe RSS feeds → raw_events | Nao | ATIVO |
-| collect-gdelt | Recolhe GDELT v2 → raw_events | Nao | ATIVO |
-| collect-x | [DEPRECATED] Usava Twitter API diretamente | Nao | SUBSTITUIDO por collect-x-grok |
-| collect-x-grok | ~~Recolhe X via Grok x_search~~ SUBSTITUIDO por collect-x-cowork | Nao | BACKUP (nao chamada) |
-| source-finder | ~~Descobre fontes via Grok web_search~~ SUBSTITUIDO por source-finder-cowork | Nao | BACKUP (nao chamada) |
-| bridge-events | Ponte raw_events → intake_queue (scoring + dedup + prioridade) | Nao | ATIVO (v1, pg_cron cada 20 min) |
-| collect-telegram | Recolhe Telegram → raw_events | Nao | ATIVO (falta API key) |
-| collect-event-registry | Recolhe Event Registry → raw_events | Nao | ATIVO (falta API key) |
-| collect-acled | Recolhe ACLED → raw_events | Nao | ATIVO (falta API key) |
-| collect-crawl4ai | Scraping on-demand → enriquecimento | Nao | ATIVO |
-| reporter-filter | Keyword scoring de raw_events | Nao | ATIVO |
-| curator-central | Dedup + classificacao + queues | Nao | ATIVO |
-| grok-reporter | ~~Analise Grok dos eventos~~ SUBSTITUIDO por pipeline-triagem | Nao | BACKUP (nao chamada) |
-| grok-fact-check | ~~6 checkers + 6 forenses via Grok API~~ SUBSTITUIDO por pipeline-triagem | Nao | BACKUP (nao chamada) |
-| grok-bias-check | ~~Bias detection via Grok~~ SUBSTITUIDO por pipeline-triagem | Nao | BACKUP (nao chamada) |
-| receive-intake | Recebe items na intake_queue | Nao | ATIVO |
-| receive-article | Recebe artigos escritos → articles | Sim | ATIVO (v8) |
-| receive-claims | Recebe claims extraidas | Nao | ATIVO |
-| receive-rationale | Recebe cadeias de raciocinio | Nao | ATIVO |
-| writer-publisher | ~~Escreve artigo via Grok~~ SUBSTITUIDO por pipeline-escritor | Nao | BACKUP (nao chamada) |
-| agent-log | Regista logs dos agentes | Nao | ATIVO |
+| Slug | Funcao | JWT | Estado | Deprecated? |
+|------|--------|-----|--------|-------------|
+| collect-rss | Recolhe RSS feeds → raw_events | Nao | ATIVO | — |
+| collect-gdelt | Recolhe GDELT v2 → raw_events | Nao | ATIVO | — |
+| collect-x-grok | ~~Recolhe X via Grok x_search~~ SUBSTITUIDO por collect-x-cowork | Nao | BACKUP (nao chamada) | @deprecated 16/03/2026 |
+| source-finder | ~~Descobre fontes via Grok web_search~~ SUBSTITUIDO por source-finder-cowork | Nao | BACKUP (nao chamada) | @deprecated 16/03/2026 |
+| bridge-events | Ponte raw_events → intake_queue (scoring + dedup + prioridade) | Nao | ATIVO (v1, pg_cron cada 20 min) | — |
+| collect-telegram | Recolhe Telegram → raw_events | Nao | ATIVO (falta API key) | — |
+| collect-event-registry | Recolhe Event Registry → raw_events | Nao | ATIVO (falta API key) | — |
+| collect-acled | Recolhe ACLED → raw_events | Nao | ATIVO (falta API key) | — |
+| collect-crawl4ai | Scraping on-demand → enriquecimento | Nao | ATIVO | — |
+| reporter-filter | Keyword scoring de raw_events | Nao | ATIVO | — |
+| curator-central | Dedup + classificacao + queues | Nao | ATIVO | — |
+| grok-reporter | ~~Analise Grok dos eventos~~ SUBSTITUIDO por pipeline-triagem | Nao | BACKUP (nao chamada) | — |
+| grok-fact-check | ~~6 checkers + 6 forenses via Grok API~~ SUBSTITUIDO por pipeline-triagem | Nao | BACKUP (nao chamada) | @deprecated 16/03/2026 |
+| grok-bias-check | ~~Bias detection via Grok~~ SUBSTITUIDO por pipeline-triagem | Nao | BACKUP (nao chamada) | @deprecated 16/03/2026 |
+| receive-intake | Recebe items na intake_queue | Nao | ATIVO | — |
+| receive-article | Recebe artigos escritos → articles | Sim | ATIVO (v8) | — |
+| receive-claims | Recebe claims extraidas | Nao | ATIVO | — |
+| receive-rationale | Recebe cadeias de raciocinio | Nao | ATIVO | — |
+| writer-publisher | ~~Escreve artigo via Grok~~ SUBSTITUIDO por pipeline-escritor | Nao | BACKUP (nao chamada) | @deprecated 16/03/2026 |
+| article-card | Gera card image para artigo (Open Graph) | Nao | ATIVO | — |
+| publish-instagram | Publica artigo no Instagram | Nao | ATIVO | — |
+| cronista | Gera cronicas dos 10 cronistas | Nao | ATIVO (v2) | — |
+| agent-log | Regista logs dos agentes | Nao | ATIVO | — |
 
 ---
 
@@ -514,13 +516,13 @@ intake_queue (status='pending')
 ### Problema Principal: O BURACO
 
 ```
-raw_events (80 rows, processed=false)
+raw_events (1934+ rows)
      │
      ▼
   ???  ← NINGUEM converte raw_events → intake_queue
      │
      ▼
-intake_queue (19 rows, estagnada)
+intake_queue (1027 pending)
 ```
 
 **Causa raiz:** O pipeline Python (runner.py) faz coleta → scoring → curadoria → editor → fact-check → publish tudo in-memory. Mas as scheduled tasks do Cowork chamam Edge Functions que escrevem na DB. Ha DOIS sistemas desconectados:
@@ -535,10 +537,8 @@ O buraco existe porque o Collector Orchestrator (Cowork task) chama `collect-rss
 1. **6/7 coletores precisam de API keys** — RSS funciona, resto inativo
 2. **Reporters fazem apenas keyword scoring** — falta fact-check + forense com Grok
 3. **14 reporters definidos, precisam de 18** — faltam 4-6 areas novas
-4. **RSS tem apenas 22 feeds** — planeados 300+
+4. **RSS tem 133 feeds** — expansao concluida (era 22, agora 133)
 5. **0 artigos novos em 8h** — pipeline completamente parada
-6. **Cronistas nao existem** — camada inteira por construir
-7. **Equipa Tecnica nao existe** — monitorizacao manual
 
 ---
 
@@ -647,6 +647,32 @@ collector-orchestrator (cada 15 min):
 - [x] Implementar Engenheiro-Chefe (agregacao + auto-correcao + logging)
 - [x] Scheduled task cada 4h (Cowork: equipa-tecnica, substitui pipeline-health-check)
 - [x] Sistema de alertas (agent_logs com severity info/warning/critical + pipeline_runs com stage equipa_tecnica)
+
+### FASE 6 — Seguranca e Estabilidade ✅ CONCLUIDA (16/03/2026)
+
+**Objetivo:** Corrigir vulnerabilidades de seguranca e melhorar UX
+
+- [x] CORS: restrict to ALLOWED_ORIGINS across 14 Edge Functions
+- [x] Auth: timing-safe constantTimeEquals for API key comparison
+- [x] XSS: DOMPurify sanitization on body_html rendering (articles + cronistas)
+- [x] Open redirect: getSafeRedirect validation on login
+- [x] Error messages: generic 'Internal server error' in catch blocks
+- [x] Error boundaries: error.tsx for global, article, categoria, cronistas
+- [x] Accessibility: MotionProvider (reduced-motion), aria-labels on CardMetrics, skip-to-content link
+- [x] AbortController: 30s timeout on external fetch in cronista + writer-publisher
+- [x] API key rotated (PUBLISH_API_KEY)
+- [x] Freshness filter: 72h MAX_EVENT_AGE_HOURS across all collectors + bridge
+- [x] 5 Grok Edge Functions marked as @deprecated
+
+### FASE 7 — Frontend Cronistas + Limpeza (Em Curso)
+
+**Objetivo:** Seccao de opiniao no frontend + cleanup
+
+- [x] Frontend cronistas: /cronistas listing, /cronista/[id] profile, /cronistas/[id] chronicle
+- [x] Error boundary + loading skeleton for cronistas
+- [x] Navigation link "Cronistas" in Header
+- [ ] Scheduled task cronista-semanal (Cowork, Domingo 20:00)
+- [ ] Processar backlog intake_queue (1027 pending items)
 
 ---
 
