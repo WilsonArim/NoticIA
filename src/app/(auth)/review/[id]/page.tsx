@@ -2,7 +2,11 @@ import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { CertaintyIndex } from "@/components/article/CertaintyIndex";
+import { PipelineTicker } from "@/components/ui/PipelineTicker";
+import { Hero3D } from "@/components/3d/Hero3D";
+import { PageReveal } from "@/components/ui/PageReveal";
 import { ReviewForm } from "@/components/review/ReviewForm";
+import { AreaChip } from "@/components/ui/AreaChip";
 
 export const metadata: Metadata = {
   title: "Revisar Artigo",
@@ -63,85 +67,138 @@ export default async function ReviewDetailPage({
     .order("step_order", { ascending: true });
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <div className="grid gap-8 lg:grid-cols-3">
-        {/* Article preview (2/3 width) */}
-        <div className="lg:col-span-2">
-          <div className="mb-4 flex items-center gap-3">
-            <span className="rounded-md bg-orange-50 px-2.5 py-1 text-sm font-medium text-orange-700 dark:bg-orange-950 dark:text-orange-400">
-              Em Revisao
-            </span>
-            <span className="rounded-md bg-blue-50 px-2.5 py-1 text-sm font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-400">
-              {article.area}
-            </span>
-          </div>
+    <>
+      <PipelineTicker />
+      <Hero3D />
 
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50 sm:text-3xl">
-            {article.title}
-          </h1>
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="grid gap-8 lg:grid-cols-3">
+          {/* Article preview (2/3 width) */}
+          <div className="lg:col-span-2">
+            <PageReveal>
+              <div className="mb-4 flex items-center gap-3">
+                <span
+                  className="rounded-md px-2.5 py-1 text-sm font-medium"
+                  style={{
+                    background: "color-mix(in srgb, var(--area-energia) 12%, transparent)",
+                    color: "var(--area-energia)",
+                  }}
+                >
+                  Em Revisao
+                </span>
+                <AreaChip area={article.area} size="sm" />
+              </div>
 
-          {article.subtitle && (
-            <p className="mt-2 text-lg text-gray-600 dark:text-gray-400">
-              {article.subtitle}
-            </p>
-          )}
+              <h1
+                className="font-serif text-2xl font-bold sm:text-3xl"
+                style={{ color: "var(--text-primary)" }}
+              >
+                {article.title}
+              </h1>
 
-          {/* Certainty */}
-          <div className="mt-4 max-w-sm">
-            <CertaintyIndex score={article.certainty_score} size="lg" />
-          </div>
+              {article.subtitle && (
+                <p
+                  className="mt-2 text-lg"
+                  style={{ color: "var(--text-secondary)" }}
+                >
+                  {article.subtitle}
+                </p>
+              )}
+            </PageReveal>
 
-          {/* Reason for review */}
-          <div className="mt-4 rounded-lg border border-orange-200 bg-orange-50 p-3 text-sm text-orange-700 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-400">
-            <strong>Razao:</strong> {review.reason}
-          </div>
+            {/* Certainty */}
+            <PageReveal delay={0.05}>
+              <div className="mt-4 max-w-sm">
+                <CertaintyIndex score={article.certainty_score} size="lg" />
+              </div>
+            </PageReveal>
 
-          {/* Lead */}
-          {article.lead && (
-            <p className="mt-6 border-l-4 border-blue-500 pl-4 text-lg font-medium leading-relaxed text-gray-700 dark:text-gray-300">
-              {article.lead}
-            </p>
-          )}
+            {/* Reason for review */}
+            <PageReveal delay={0.1}>
+              <div
+                className="mt-4 rounded-lg border p-3 text-sm"
+                style={{
+                  borderColor: "color-mix(in srgb, var(--area-energia) 30%, transparent)",
+                  background: "color-mix(in srgb, var(--area-energia) 8%, transparent)",
+                  color: "var(--area-energia)",
+                }}
+              >
+                <strong>Razao:</strong> {review.reason}
+              </div>
+            </PageReveal>
 
-          {/* Body */}
-          <div className="prose mt-6 max-w-none dark:prose-invert">
-            {article.body.split("\n\n").map((paragraph: string, i: number) => (
-              <p key={i}>{paragraph}</p>
-            ))}
-          </div>
+            {/* Lead */}
+            {article.lead && (
+              <PageReveal delay={0.15}>
+                <p
+                  className="mt-6 border-l-4 pl-4 text-lg font-medium leading-relaxed"
+                  style={{
+                    borderColor: "var(--accent)",
+                    color: "var(--text-secondary)",
+                  }}
+                >
+                  {article.lead}
+                </p>
+              </PageReveal>
+            )}
 
-          {/* Rationale */}
-          {rationaleChains && rationaleChains.length > 0 && (
-            <section className="mt-8 rounded-xl border border-gray-200 p-4 dark:border-gray-800">
-              <h3 className="mb-3 text-sm font-semibold text-gray-700 dark:text-gray-300">
-                Raciocinio da Pipeline
-              </h3>
-              <div className="space-y-2">
-                {rationaleChains.map((step, i) => (
-                  <div
-                    key={i}
-                    className="flex gap-2 text-sm"
-                  >
-                    <span className="w-28 flex-shrink-0 font-medium text-gray-900 dark:text-gray-100">
-                      {step.agent_name}
-                    </span>
-                    <p className="text-gray-600 dark:text-gray-400">
-                      {step.reasoning_text}
-                    </p>
-                  </div>
+            {/* Body */}
+            <PageReveal delay={0.2}>
+              <div
+                className="prose mt-6 max-w-none dark:prose-invert"
+                style={{ color: "var(--text-primary)" }}
+              >
+                {article.body.split("\n\n").map((paragraph: string, i: number) => (
+                  <p key={i}>{paragraph}</p>
                 ))}
               </div>
-            </section>
-          )}
-        </div>
+            </PageReveal>
 
-        {/* Review sidebar (1/3 width) */}
-        <div className="lg:col-span-1">
-          <div className="sticky top-20">
-            <ReviewForm reviewId={review.id} articleId={article.id} />
+            {/* Rationale */}
+            {rationaleChains && rationaleChains.length > 0 && (
+              <PageReveal delay={0.25}>
+                <section
+                  className="glow-card mt-8 p-4"
+                >
+                  <h3
+                    className="mb-3 text-sm font-semibold"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    Raciocinio da Pipeline
+                  </h3>
+                  <div className="space-y-2">
+                    {rationaleChains.map((step, i) => (
+                      <div
+                        key={i}
+                        className="flex gap-2 text-sm"
+                      >
+                        <span
+                          className="w-28 flex-shrink-0 font-medium"
+                          style={{ color: "var(--text-primary)" }}
+                        >
+                          {step.agent_name}
+                        </span>
+                        <p style={{ color: "var(--text-secondary)" }}>
+                          {step.reasoning_text}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              </PageReveal>
+            )}
+          </div>
+
+          {/* Review sidebar (1/3 width) */}
+          <div className="lg:col-span-1">
+            <PageReveal delay={0.1}>
+              <div className="sticky top-20">
+                <ReviewForm reviewId={review.id} articleId={article.id} />
+              </div>
+            </PageReveal>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

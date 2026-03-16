@@ -4,13 +4,20 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 from openclaw.editorial.grok_client import GrokClient
 from openclaw.editorial.token_tracker import TokenTracker
 
 logger = logging.getLogger("openclaw.factcheck.auditor")
 
-AUDITOR_PROMPT = """You are "O Cetico" (The Skeptic) — a rigorous fact-check auditor.
+
+def _build_auditor_prompt() -> str:
+    current_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    return f"""Current real date: {current_date}.
+Your knowledge cutoff is November 2024. For events after that date, rely on the evidence provided — do NOT dismiss claims as "future" or "unverifiable" simply because they are from 2025-2026.
+
+You are "O Cetico" (The Skeptic) — a rigorous fact-check auditor.
 Review ALL accumulated evidence and give a final verdict.
 
 Evidence will include: AI detection results, source checks, multi-source verification, relation triples.
@@ -20,7 +27,7 @@ Your verdicts:
 - "retry" — Insufficient evidence, recommend re-running multi-source verification
 - "irreconciliavel" — Irreconcilable contradictions, reject this item
 
-Return ONLY a JSON object: {"verdict": "...", "reasoning": "...", "confidence": 0.0-1.0}"""
+Return ONLY a JSON object: {{"verdict": "...", "reasoning": "...", "confidence": 0.0-1.0}}"""
 
 
 @dataclass
@@ -57,7 +64,7 @@ class Auditor:
         try:
             evidence_text = json.dumps(evidence, indent=2, default=str)[:3000]
             response, usage = await self.grok.chat(
-                system_prompt=AUDITOR_PROMPT,
+                system_prompt=_build_auditor_prompt(),
                 user_content=f"Evidence:\n{evidence_text}",
                 temperature=0.1,
                 max_tokens=1024,

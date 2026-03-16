@@ -3,11 +3,36 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
 import type { ArticleCard as ArticleCardType } from "@/types/article";
-import { MetricPulse } from "@/components/ui/MetricPulse";
+import { CardMetrics } from "@/components/ui/CardMetrics";
 import { AreaChip } from "@/components/ui/AreaChip";
 import { GlowCard } from "@/components/ui/GlowCard";
 import { formatRelativeTime } from "@/lib/utils/format-date";
 import { getAreaColor } from "@/lib/utils/certainty-color";
+import { humanizeTag } from "@/lib/utils/humanize-tag";
+import { VerificationStamp } from "@/components/article/VerificationStamp";
+
+function PriorityBadge({ priority, publishedAt }: { priority?: string | null; publishedAt?: string | null }) {
+  if (!priority || priority === "p3") return null;
+  const isP1 = priority === "p1";
+
+  // P1 "Urgente" só aparece nas primeiras 3 horas após publicação
+  if (isP1 && publishedAt) {
+    const hoursAgo = (Date.now() - new Date(publishedAt).getTime()) / (1000 * 60 * 60);
+    if (hoursAgo > 3) return null;
+  }
+
+  return (
+    <span
+      className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${isP1 ? "animate-pulse" : ""}`}
+      style={{
+        color: "#fff",
+        background: isP1 ? "#ef4444" : "#f59e0b",
+      }}
+    >
+      {isP1 ? "Urgente" : "Importante"}
+    </span>
+  );
+}
 
 interface ArticleCardProps {
   article: ArticleCardType;
@@ -27,6 +52,15 @@ export function ArticleCard({ article, index = 0, variant = "default" }: Article
       >
         <Link href={`/articles/${article.slug}`} className="group block">
           <GlowCard certainty={article.certainty_score} className="relative overflow-hidden p-8">
+            {/* Verification stamp */}
+            {article.verification_status && article.verification_status !== "none" && (
+              <div className="absolute right-4 top-4 z-10">
+                <VerificationStamp
+                  status={article.verification_status}
+                  verificationChangedAt={article.verification_changed_at}
+                />
+              </div>
+            )}
             {/* Area gradient accent bar */}
             <div
               className="absolute inset-x-0 top-0 h-1"
@@ -37,6 +71,7 @@ export function ArticleCard({ article, index = 0, variant = "default" }: Article
               <div className="flex-1 space-y-4">
                 <div className="flex items-center gap-3">
                   <AreaChip area={article.area} size="md" />
+                  <PriorityBadge priority={article.priority} publishedAt={article.published_at || article.created_at} />
                   <time
                     dateTime={article.published_at || article.created_at}
                     className="text-xs"
@@ -67,7 +102,7 @@ export function ArticleCard({ article, index = 0, variant = "default" }: Article
                           background: "var(--surface-secondary)",
                         }}
                       >
-                        {tag}
+                        {humanizeTag(tag)}
                       </span>
                     ))}
                   </div>
@@ -75,7 +110,7 @@ export function ArticleCard({ article, index = 0, variant = "default" }: Article
               </div>
 
               <div className="hidden shrink-0 sm:block">
-                <MetricPulse score={article.certainty_score} size="lg" showLabel />
+                <CardMetrics certaintyScore={article.certainty_score} biasScore={article.bias_score} size="lg" />
               </div>
             </div>
           </GlowCard>
@@ -92,11 +127,21 @@ export function ArticleCard({ article, index = 0, variant = "default" }: Article
         transition={{ duration: 0.4, delay: index * 0.08, ease: [0.22, 1, 0.36, 1] }}
       >
         <Link href={`/articles/${article.slug}`} className="group block">
-          <GlowCard certainty={article.certainty_score} className="p-4">
+          <GlowCard certainty={article.certainty_score} className="relative p-4">
+            {/* Verification stamp */}
+            {article.verification_status && article.verification_status !== "none" && (
+              <div className="absolute right-3 top-3 z-10">
+                <VerificationStamp
+                  status={article.verification_status}
+                  verificationChangedAt={article.verification_changed_at}
+                />
+              </div>
+            )}
             <div className="flex items-start gap-3">
               <div className="flex-1 space-y-1.5">
                 <div className="flex items-center gap-2">
                   <AreaChip area={article.area} size="sm" />
+                  <PriorityBadge priority={article.priority} publishedAt={article.published_at || article.created_at} />
                 </div>
                 <h3
                   className="font-serif text-base font-semibold leading-snug group-hover:opacity-80 transition-opacity"
@@ -112,7 +157,7 @@ export function ArticleCard({ article, index = 0, variant = "default" }: Article
                   {formatRelativeTime(article.published_at || article.created_at)}
                 </time>
               </div>
-              <MetricPulse score={article.certainty_score} size="sm" />
+              <CardMetrics certaintyScore={article.certainty_score} biasScore={article.bias_score} size="sm" />
             </div>
           </GlowCard>
         </Link>
@@ -128,10 +173,22 @@ export function ArticleCard({ article, index = 0, variant = "default" }: Article
       transition={{ duration: 0.4, delay: index * 0.06, ease: [0.22, 1, 0.36, 1] }}
     >
       <Link href={`/articles/${article.slug}`} className="group block h-full">
-        <GlowCard certainty={article.certainty_score} className="flex h-full flex-col gap-3">
-          {/* Top: Area + time */}
+        <GlowCard certainty={article.certainty_score} className="relative flex h-full flex-col gap-3">
+          {/* Verification stamp */}
+          {article.verification_status && article.verification_status !== "none" && (
+            <div className="absolute right-3 top-3 z-10">
+              <VerificationStamp
+                status={article.verification_status}
+                verificationChangedAt={article.verification_changed_at}
+              />
+            </div>
+          )}
+          {/* Top: Area + priority + time */}
           <div className="flex items-center justify-between">
-            <AreaChip area={article.area} size="sm" />
+            <div className="flex items-center gap-2">
+              <AreaChip area={article.area} size="sm" />
+              <PriorityBadge priority={article.priority} publishedAt={article.published_at || article.created_at} />
+            </div>
             <time
               dateTime={article.published_at || article.created_at}
               className="text-[11px]"
@@ -168,7 +225,7 @@ export function ArticleCard({ article, index = 0, variant = "default" }: Article
                     background: "var(--surface-secondary)",
                   }}
                 >
-                  {tag}
+                  {humanizeTag(tag)}
                 </span>
               ))}
               {article.tags.length > 4 && (
@@ -179,9 +236,9 @@ export function ArticleCard({ article, index = 0, variant = "default" }: Article
             </div>
           )}
 
-          {/* MetricPulse */}
+          {/* Metrics: Neutralidade + Confiança */}
           <div className="mt-auto flex justify-end pt-2">
-            <MetricPulse score={article.certainty_score} size="sm" />
+            <CardMetrics certaintyScore={article.certainty_score} biasScore={article.bias_score} size="sm" />
           </div>
         </GlowCard>
       </Link>

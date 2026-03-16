@@ -92,12 +92,15 @@ export type Database = {
       articles: {
         Row: {
           area: string
+          bias_analysis: Json | null
+          bias_score: number | null
           body: string
           body_html: string | null
           certainty_score: number
           claim_review_json: Json | null
           created_at: string
           deleted_at: string | null
+          debunk_note: string | null
           embedding: string | null
           id: string
           impact_score: number | null
@@ -113,15 +116,20 @@ export type Database = {
           tags: string[] | null
           title: string
           updated_at: string
+          verification_changed_at: string | null
+          verification_status: string
         }
         Insert: {
           area: string
+          bias_analysis?: Json | null
+          bias_score?: number | null
           body: string
           body_html?: string | null
           certainty_score: number
           claim_review_json?: Json | null
           created_at?: string
           deleted_at?: string | null
+          debunk_note?: string | null
           embedding?: string | null
           id?: string
           impact_score?: number | null
@@ -137,15 +145,20 @@ export type Database = {
           tags?: string[] | null
           title: string
           updated_at?: string
+          verification_changed_at?: string | null
+          verification_status?: string
         }
         Update: {
           area?: string
+          bias_analysis?: Json | null
+          bias_score?: number | null
           body?: string
           body_html?: string | null
           certainty_score?: number
           claim_review_json?: Json | null
           created_at?: string
           deleted_at?: string | null
+          debunk_note?: string | null
           embedding?: string | null
           id?: string
           impact_score?: number | null
@@ -161,6 +174,8 @@ export type Database = {
           tags?: string[] | null
           title?: string
           updated_at?: string
+          verification_changed_at?: string | null
+          verification_status?: string
         }
         Relationships: []
       }
@@ -778,6 +793,7 @@ export type Database = {
       }
       source_credibility: {
         Row: {
+          bias_direction: string | null
           bias_flags: string[] | null
           category: string | null
           created_at: string | null
@@ -790,6 +806,7 @@ export type Database = {
           weight: number
         }
         Insert: {
+          bias_direction?: string | null
           bias_flags?: string[] | null
           category?: string | null
           created_at?: string | null
@@ -802,6 +819,7 @@ export type Database = {
           weight: number
         }
         Update: {
+          bias_direction?: string | null
           bias_flags?: string[] | null
           category?: string | null
           created_at?: string | null

@@ -7,7 +7,15 @@ import { createClient } from "@/lib/supabase/client";
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get("redirect") || "/dashboard";
+  function getSafeRedirect(param: string | null): string {
+    if (!param) return "/dashboard";
+    // Must start with / and NOT with // (protocol-relative URL)
+    if (param.startsWith("/") && !param.startsWith("//")) {
+      return param;
+    }
+    return "/dashboard";
+  }
+  const redirectTo = getSafeRedirect(searchParams.get("redirect"));
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -46,7 +54,7 @@ export default function LoginPage() {
             Entrar
           </h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Acesso ao dashboard e revisao de artigos
+            Acesso ao dashboard e revisão de artigos
           </p>
         </div>
 

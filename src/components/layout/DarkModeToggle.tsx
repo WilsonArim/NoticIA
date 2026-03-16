@@ -1,9 +1,20 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useTheme } from "./ThemeProvider";
 
 export function DarkModeToggle() {
   const { resolvedTheme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
+
+  // Avoid hydration mismatch: render placeholder until mounted
+  if (!mounted) {
+    return (
+      <div className="flex h-9 w-9 items-center justify-center rounded-lg" />
+    );
+  }
 
   const isDark = resolvedTheme === "dark";
 
@@ -11,7 +22,16 @@ export function DarkModeToggle() {
     <button
       onClick={() => setTheme(isDark ? "light" : "dark")}
       aria-label={isDark ? "Mudar para modo claro" : "Mudar para modo escuro"}
-      className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+      className="flex h-9 w-9 items-center justify-center rounded-lg transition-colors"
+      style={{ color: "var(--text-tertiary)" }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = "var(--surface-secondary)";
+        e.currentTarget.style.color = "var(--text-primary)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = "transparent";
+        e.currentTarget.style.color = "var(--text-tertiary)";
+      }}
     >
       {isDark ? (
         /* Sun icon */

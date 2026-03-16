@@ -9,6 +9,13 @@ export type ArticleWithRelations = Article & {
   rationale_chains: RationaleChain[];
 };
 
+/** Verification status for articles */
+export type VerificationStatus =
+  | "none"
+  | "under_review"
+  | "verified"
+  | "debunked";
+
 /** Article card — minimal data for list views */
 export type ArticleCard = Pick<
   Article,
@@ -24,6 +31,10 @@ export type ArticleCard = Pick<
   | "published_at"
   | "created_at"
   | "status"
+  | "priority"
+  | "bias_score"
+  | "verification_status"
+  | "verification_changed_at"
 >;
 
 /** Article status enum */
@@ -49,7 +60,13 @@ export type ArticleArea =
   | "Ciencia"
   | "Mercados"
   | "Sociedade"
-  | "Desporto";
+  | "Desporto"
+  | "Politica_Intl"
+  | "Diplomacia"
+  | "Defesa_Estrategica"
+  | "Desinformacao"
+  | "Direitos_Humanos"
+  | "Crime_Organizado";
 
 // Re-export related types
 import type { ClaimWithSources } from "./claim";

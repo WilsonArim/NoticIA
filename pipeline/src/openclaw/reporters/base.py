@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
+from functools import lru_cache
 
 from openclaw.config import (
     BREAKING_SIGNALS,
@@ -12,6 +14,17 @@ from openclaw.config import (
 from openclaw.models import RawEvent, ScoredEvent
 
 logger = logging.getLogger("openclaw.reporters")
+
+
+@lru_cache(maxsize=512)
+def _word_pattern(term: str) -> re.Pattern[str]:
+    """Compile a word-boundary regex for a keyword. Cached for performance."""
+    return re.compile(r"\b" + re.escape(term.lower()) + r"\b", re.IGNORECASE)
+
+
+def _keyword_matches(term: str, text: str) -> bool:
+    """Check if a keyword matches in text using word boundaries."""
+    return _word_pattern(term).search(text) is not None
 
 
 # --- 14 Reporter Configurations ---
@@ -185,6 +198,78 @@ REPORTER_CONFIGS: dict[str, ReporterConfig] = {
             1: ["sport", "athlete", "team", "match", "game"],
         },
     ),
+    "intl_politics": ReporterConfig(
+        area="intl_politics",
+        threshold=0.30,
+        priority_collectors=["gdelt", "event_registry"],
+        weighted_keywords={
+            5: ["regime change", "coup d'état", "political crisis", "government collapse", "impeachment"],
+            4: ["election", "prime minister", "president elected", "parliament dissolved", "political turmoil"],
+            3: ["opposition leader", "coalition government", "political party", "referendum", "vote of confidence", "constitutional crisis"],
+            2: ["head of state", "cabinet reshuffle", "political reform", "inauguration", "term limit"],
+            1: ["politics", "political", "government", "democracy", "authoritarian"],
+        },
+    ),
+    "diplomacy": ReporterConfig(
+        area="diplomacy",
+        threshold=0.30,
+        priority_collectors=["gdelt", "event_registry"],
+        weighted_keywords={
+            5: ["peace agreement", "ambassador expelled", "diplomatic crisis", "embassy closure", "diplomatic immunity revoked"],
+            4: ["UN summit", "peace talks", "treaty signed", "diplomatic relations", "foreign affairs minister"],
+            3: ["bilateral agreement", "multilateral negotiations", "consular services", "diplomatic channel", "envoy", "mediation"],
+            2: ["diplomatic visit", "state visit", "memorandum of understanding", "protocol", "accreditation"],
+            1: ["diplomacy", "diplomatic", "foreign affairs", "embassy", "consul"],
+        },
+    ),
+    "defense_strategy": ReporterConfig(
+        area="defense_strategy",
+        threshold=0.30,
+        priority_collectors=["gdelt", "acled"],
+        weighted_keywords={
+            5: ["arms race", "nuclear proliferation", "defense pact", "military buildup", "strategic deterrence"],
+            4: ["defense budget", "arms deal", "military alliance", "naval exercise", "weapons procurement"],
+            3: ["defense minister", "joint military exercise", "arms embargo", "military cooperation", "defense industry", "conscription"],
+            2: ["defense spending", "strategic partnership", "military modernization", "arms export", "defense contractor"],
+            1: ["defense strategy", "strategic", "military planning", "national security", "deterrence"],
+        },
+    ),
+    "disinfo": ReporterConfig(
+        area="disinfo",
+        threshold=0.35,  # Higher threshold — critical reporter, less noise
+        priority_collectors=["x", "rss"],
+        weighted_keywords={
+            5: ["fake news", "deep fake", "propaganda", "bot network", "manipulation", "disinformation", "misinformation", "astroturfing", "troll farm"],
+            4: ["information warfare", "media manipulation", "coordinated inauthentic", "fact check failed", "fabricated content", "election interference"],
+            3: ["false narrative", "conspiracy theory", "influence operation", "state propaganda", "censorship", "media control", "content moderation"],
+            2: ["misleading", "debunked", "viral hoax", "clickbait", "echo chamber", "filter bubble"],
+            1: ["information", "narrative", "credibility", "verification", "media literacy"],
+        },
+    ),
+    "human_rights": ReporterConfig(
+        area="human_rights",
+        threshold=0.30,
+        priority_collectors=["gdelt", "acled"],
+        weighted_keywords={
+            5: ["genocide", "ethnic cleansing", "political prisoner", "war crime", "crimes against humanity"],
+            4: ["torture", "forced disappearance", "freedom of press", "human rights violation", "humanitarian crisis"],
+            3: ["arbitrary detention", "extrajudicial killing", "press freedom", "civil liberties", "asylum seeker", "persecution"],
+            2: ["human rights watch", "amnesty international", "ICC", "UN human rights", "UNHCR"],
+            1: ["human rights", "rights", "dignity", "freedom", "liberty"],
+        },
+    ),
+    "organized_crime": ReporterConfig(
+        area="organized_crime",
+        threshold=0.30,
+        priority_collectors=["event_registry", "rss"],
+        weighted_keywords={
+            5: ["drug cartel", "money laundering", "organized crime ring", "human trafficking", "narco state"],
+            4: ["drug trafficking", "mafia", "criminal network", "corruption scandal", "extortion ring"],
+            3: ["drug seizure", "criminal organization", "smuggling", "racketeering", "illicit trade", "arms trafficking"],
+            2: ["law enforcement raid", "undercover operation", "witness protection", "criminal enterprise", "syndicate"],
+            1: ["crime", "criminal", "trafficking", "smuggling", "cartel"],
+        },
+    ),
 }
 
 
@@ -192,12 +277,12 @@ def score_event(event: RawEvent, config: ReporterConfig) -> float:
     """Score an event based on weighted keywords × source credibility."""
     text = f"{event.title} {event.content}".lower()
 
-    # 1. Keyword matching with weights (1-5)
+    # 1. Keyword matching with weights (1-5), using word boundaries
     weighted_sum = 0
     matched: list[str] = []
     for weight, terms in config.weighted_keywords.items():
         for term in terms:
-            if term.lower() in text:
+            if _keyword_matches(term, text):
                 weighted_sum += weight
                 matched.append(term)
 
@@ -229,9 +314,9 @@ def classify_priority(score: float, event: RawEvent, threshold: float) -> str:
     """Classify event priority: P1 (urgent), P2 (relevant), P3 (context)."""
     text = f"{event.title} {event.content}".lower()
 
-    # Breaking signals → force P1
+    # Breaking signals → force P1 (word boundary match)
     for signal in BREAKING_SIGNALS:
-        if signal in text:
+        if _keyword_matches(signal, text):
             return "P1"
 
     # ACLED fatalities → P1
@@ -269,7 +354,7 @@ class BaseReporter:
             matched = []
             for weight, terms in self.config.weighted_keywords.items():
                 for term in terms:
-                    if term.lower() in text:
+                    if _keyword_matches(term, text):
                         matched.append(term)
 
             scored.append(ScoredEvent(
@@ -287,5 +372,5 @@ class BaseReporter:
 
 
 def create_all_reporters() -> list[BaseReporter]:
-    """Create all 14 reporters from configs."""
+    """Create all 20 reporters from configs."""
     return [BaseReporter(config) for config in REPORTER_CONFIGS.values()]

@@ -22,7 +22,10 @@ export function useTheme() {
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>("system");
-  const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("light");
+  const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">(
+    // Always start as "light" for SSR consistency — useEffect will correct it
+    "light",
+  );
 
   // Read from localStorage on mount
   useEffect(() => {
@@ -37,6 +40,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   // Apply class to <html> whenever theme or system preference changes
   useEffect(() => {
     const root = document.documentElement;
+    if (!root) return;
     const media = window.matchMedia("(prefers-color-scheme: dark)");
 
     function apply() {

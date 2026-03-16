@@ -6,7 +6,7 @@ export function Footer() {
     <footer
       className="border-t"
       style={{
-        borderColor: "var(--border-primary)",
+        borderImage: "linear-gradient(90deg, var(--accent), var(--area-economia), var(--area-tecnologia)) 1",
         background: "var(--surface-secondary)",
       }}
     >
@@ -18,14 +18,14 @@ export function Footer() {
               className="font-serif text-lg font-bold tracking-tight"
               style={{ color: "var(--text-primary)" }}
             >
-              Curador de Noticias
+              NoticIA
             </h3>
             <p
               className="mt-2 text-sm leading-relaxed"
               style={{ color: "var(--text-secondary)" }}
             >
               Jornalismo feito por IA de forma independente. Cada artigo
-              mostra fontes, raciocinio e nivel de confianca.
+              mostra fontes, raciocínio e nível de confiança.
             </p>
           </div>
 
@@ -35,13 +35,13 @@ export function Footer() {
               className="text-xs font-semibold uppercase tracking-wider"
               style={{ color: "var(--text-tertiary)" }}
             >
-              Navegacao
+              Navegação
             </h4>
             <nav className="mt-3 flex flex-col gap-2">
               {[
                 { href: "/articles", label: "Artigos" },
+                { href: "/cronistas", label: "Cronistas" },
                 { href: "/search", label: "Pesquisar" },
-                { href: "/dashboard", label: "Observatorio" },
               ].map(({ href, label }) => (
                 <Link
                   key={href}
@@ -65,16 +65,16 @@ export function Footer() {
             </h4>
             <div className="mt-3 space-y-2.5">
               <div className="flex items-center gap-2 text-sm" style={{ color: "var(--text-secondary)" }}>
-                <Bot size={14} style={{ color: "var(--accent)" }} />
+                <Bot size={14} className="animate-pulse-glow" style={{ color: "var(--accent)" }} />
                 <span>Multi-agente ativa</span>
               </div>
               <div className="flex items-center gap-2 text-sm" style={{ color: "var(--text-secondary)" }}>
-                <Shield size={14} style={{ color: "var(--area-economia)" }} />
-                <span>Fact-checking automatico</span>
+                <Shield size={14} className="animate-pulse-glow" style={{ color: "var(--area-economia)" }} />
+                <span>Fact-checking automático</span>
               </div>
               <div className="flex items-center gap-2 text-sm" style={{ color: "var(--text-secondary)" }}>
-                <Eye size={14} style={{ color: "var(--area-tecnologia)" }} />
-                <span>Raciocinio transparente</span>
+                <Eye size={14} className="animate-pulse-glow" style={{ color: "var(--area-tecnologia)" }} />
+                <span>Raciocínio transparente</span>
               </div>
             </div>
           </div>
@@ -87,7 +87,7 @@ export function Footer() {
             color: "var(--text-tertiary)",
           }}
         >
-          Verificacao multi-agente: Coletores (Grok) &middot; Reporteres (Claude) &middot; Fact-checkers (Grok) &middot; Editorial (Claude)
+          Verificação multi-agente: Coletores (IA) &middot; Repórteres (Keyword + IA) &middot; Fact-checkers (Claude) &middot; Editorial (Claude)
         </div>
       </div>
     </footer>

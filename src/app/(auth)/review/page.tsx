@@ -1,12 +1,16 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import type { Metadata } from "next";
-import { CertaintyIndex } from "@/components/article/CertaintyIndex";
+import { PipelineTicker } from "@/components/ui/PipelineTicker";
+import { Hero3D } from "@/components/3d/Hero3D";
+import { PageReveal } from "@/components/ui/PageReveal";
+import { MetricPulse } from "@/components/ui/MetricPulse";
+import { AreaChip } from "@/components/ui/AreaChip";
 import { formatRelativeTime } from "@/lib/utils/format-date";
 
 export const metadata: Metadata = {
-  title: "Fila de Revisao",
-  description: "Revisar artigos com confianca abaixo do limiar.",
+  title: "Fila de Revisão",
+  description: "Revisar artigos com confiança abaixo do limiar.",
 };
 
 export const revalidate = 10;
@@ -28,78 +32,99 @@ export default async function ReviewPage() {
     .order("created_at", { ascending: false });
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-50">
-          Fila de Revisao
-        </h1>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          Artigos com confianca &lt; 80% requerem revisao humana
-        </p>
-      </div>
+    <>
+      <PipelineTicker />
+      <Hero3D />
 
-      {!reviews || reviews.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-gray-300 py-16 text-center dark:border-gray-700">
-          <p className="text-lg text-gray-500 dark:text-gray-400">
-            Nenhum artigo pendente de revisao
-          </p>
-          <p className="mt-1 text-sm text-gray-400 dark:text-gray-500">
-            Artigos com confianca alta sao publicados automaticamente.
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {reviews.map((review) => {
-            const article = review.article as unknown as {
-              id: string;
-              slug: string;
-              title: string;
-              area: string;
-              certainty_score: number;
-              status: string;
-            };
-            if (!article) return null;
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <PageReveal>
+          <div className="mb-8">
+            <h1
+              className="font-serif text-3xl font-bold"
+              style={{ color: "var(--text-primary)" }}
+            >
+              Fila de Revisão
+            </h1>
+            <p className="mt-1 text-sm" style={{ color: "var(--text-secondary)" }}>
+              Artigos com confiança &lt; 90% requerem revisão humana
+            </p>
+          </div>
+        </PageReveal>
 
-            return (
-              <Link
-                key={review.id}
-                href={`/review/${review.id}`}
-                className="flex items-center gap-4 rounded-xl border border-gray-200 p-4 transition-all hover:border-gray-300 hover:shadow-sm dark:border-gray-800 dark:hover:border-gray-700"
-              >
-                {/* Confidence gauge */}
-                <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full border-4 border-orange-200 dark:border-orange-800">
-                  <span className="text-sm font-bold tabular-nums text-orange-600 dark:text-orange-400">
-                    {Math.round(review.confidence_at_trigger * 100)}%
-                  </span>
-                </div>
+        {!reviews || reviews.length === 0 ? (
+          <PageReveal delay={0.1}>
+            <div
+              className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed py-16"
+              style={{ borderColor: "var(--border-primary)" }}
+            >
+              <p className="text-lg" style={{ color: "var(--text-secondary)" }}>
+                Nenhum artigo pendente de revisão
+              </p>
+              <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>
+                Artigos com confiança alta são publicados automaticamente.
+              </p>
+            </div>
+          </PageReveal>
+        ) : (
+          <div className="space-y-3">
+            {reviews.map((review, i) => {
+              const article = review.article as unknown as {
+                id: string;
+                slug: string;
+                title: string;
+                area: string;
+                certainty_score: number;
+                status: string;
+              };
+              if (!article) return null;
 
-                {/* Article info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="rounded bg-blue-50 px-1.5 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-400">
-                      {article.area}
+              return (
+                <PageReveal key={review.id} delay={0.05 * i}>
+                  <Link
+                    href={`/review/${review.id}`}
+                    className="glow-card flex items-center gap-4 p-4 transition-all"
+                  >
+                    {/* Confidence gauge */}
+                    <div className="flex-shrink-0">
+                      <MetricPulse score={review.confidence_at_trigger} size="md" />
+                    </div>
+
+                    {/* Article info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <AreaChip area={article.area} size="sm" />
+                        <time
+                          className="text-xs"
+                          style={{ color: "var(--text-tertiary)" }}
+                        >
+                          {formatRelativeTime(review.created_at)}
+                        </time>
+                      </div>
+                      <h3
+                        className="mt-1 truncate text-sm font-semibold"
+                        style={{ color: "var(--text-primary)" }}
+                      >
+                        {article.title}
+                      </h3>
+                      <p
+                        className="text-xs"
+                        style={{ color: "var(--text-secondary)" }}
+                      >
+                        {review.reason}
+                      </p>
+                    </div>
+
+                    {/* Arrow */}
+                    <span style={{ color: "var(--text-tertiary)" }}>
+                      &rarr;
                     </span>
-                    <time className="text-xs text-gray-400">
-                      {formatRelativeTime(review.created_at)}
-                    </time>
-                  </div>
-                  <h3 className="mt-1 truncate text-sm font-semibold text-gray-900 dark:text-gray-100">
-                    {article.title}
-                  </h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {review.reason}
-                  </p>
-                </div>
-
-                {/* Arrow */}
-                <span className="text-gray-300 dark:text-gray-600">
-                  &rarr;
-                </span>
-              </Link>
-            );
-          })}
-        </div>
-      )}
-    </div>
+                  </Link>
+                </PageReveal>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </>
   );
 }

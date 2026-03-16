@@ -2,30 +2,29 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback } from "react";
+import { ChevronDown } from "lucide-react";
 
-const AREAS = [
-  "Geopolitica",
-  "Defesa",
-  "Economia",
-  "Tech",
-  "Energia",
-  "Saude",
-  "Ambiente",
-  "Crypto",
-  "Regulacao",
-  "Portugal",
-  "Ciencia",
-  "Mercados",
-  "Sociedade",
-  "Desporto",
-];
-
-const CERTAINTY_OPTIONS = [
-  { label: "Qualquer", value: "" },
-  { label: "> 90%", value: "0.9" },
-  { label: "> 80%", value: "0.8" },
-  { label: "> 60%", value: "0.6" },
-  { label: "> 40%", value: "0.4" },
+const AREAS: { value: string; label: string }[] = [
+  { value: "geopolitica", label: "Geopolítica" },
+  { value: "defesa", label: "Defesa" },
+  { value: "economia", label: "Economia" },
+  { value: "tech", label: "Tecnologia" },
+  { value: "energia", label: "Energia" },
+  { value: "saude", label: "Saúde" },
+  { value: "ambiente", label: "Ambiente" },
+  { value: "crypto", label: "Crypto" },
+  { value: "regulacao", label: "Regulação" },
+  { value: "portugal", label: "Portugal" },
+  { value: "ciencia", label: "Ciência" },
+  { value: "mercados", label: "Mercados" },
+  { value: "sociedade", label: "Sociedade" },
+  { value: "desporto", label: "Desporto" },
+  { value: "politica_intl", label: "Política Internacional" },
+  { value: "diplomacia", label: "Diplomacia" },
+  { value: "defesa_estrategica", label: "Defesa Estratégica" },
+  { value: "desinformacao", label: "Desinformação" },
+  { value: "direitos_humanos", label: "Direitos Humanos" },
+  { value: "crime_organizado", label: "Crime Organizado" },
 ];
 
 export function FilterBar() {
@@ -33,7 +32,6 @@ export function FilterBar() {
   const searchParams = useSearchParams();
 
   const currentArea = searchParams.get("area") || "";
-  const currentCertainty = searchParams.get("certainty_min") || "";
 
   const updateFilter = useCallback(
     (key: string, value: string) => {
@@ -52,37 +50,45 @@ export function FilterBar() {
   return (
     <div className="flex flex-wrap items-center gap-3">
       {/* Area filter */}
-      <select
-        value={currentArea}
-        onChange={(e) => updateFilter("area", e.target.value)}
-        className="h-9 rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800"
-      >
-        <option value="">Todas as areas</option>
-        {AREAS.map((area) => (
-          <option key={area} value={area}>
-            {area}
-          </option>
-        ))}
-      </select>
-
-      {/* Certainty filter */}
-      <select
-        value={currentCertainty}
-        onChange={(e) => updateFilter("certainty_min", e.target.value)}
-        className="h-9 rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800"
-      >
-        {CERTAINTY_OPTIONS.map((opt) => (
-          <option key={opt.value} value={opt.value}>
-            Confianca: {opt.label}
-          </option>
-        ))}
-      </select>
+      <div className="relative">
+        <select
+          value={currentArea}
+          onChange={(e) => updateFilter("area", e.target.value)}
+          className="h-10 appearance-none rounded-xl border py-2 pl-3 pr-9 text-sm outline-none transition-colors focus:ring-1"
+          style={{
+            borderColor: "var(--border-primary)",
+            background: "var(--surface-elevated)",
+            color: "var(--text-primary)",
+            // @ts-expect-error -- CSS custom property for focus ring
+            "--tw-ring-color": "var(--accent)",
+          }}
+          onFocus={(e) => {
+            e.currentTarget.style.borderColor = "var(--accent)";
+          }}
+          onBlur={(e) => {
+            e.currentTarget.style.borderColor = "var(--border-primary)";
+          }}
+        >
+          <option value="">Todas as áreas</option>
+          {AREAS.map(({ value, label }) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+        <ChevronDown
+          size={14}
+          className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2"
+          style={{ color: "var(--text-tertiary)" }}
+        />
+      </div>
 
       {/* Clear filters */}
-      {(currentArea || currentCertainty) && (
+      {currentArea && (
         <button
           onClick={() => router.push("/articles")}
-          className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+          className="text-sm transition-opacity hover:opacity-70"
+          style={{ color: "var(--text-tertiary)" }}
         >
           Limpar filtros
         </button>

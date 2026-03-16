@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Bot, Brain, Search, Cpu, Clock, Zap } from "lucide-react";
+import { Bot, Brain, Search, Cpu, Clock, Zap, type LucideIcon } from "lucide-react";
 
 interface RationaleStep {
   id: string;
@@ -16,16 +16,19 @@ interface RationaleRiverProps {
   steps: RationaleStep[];
 }
 
-const agentIcons: Record<string, React.ElementType> = {
+const agentIcons: Record<string, LucideIcon> = {
   grok: Bot,
   claude: Brain,
   collector: Search,
   reporter: Brain,
   "fact-checker": Bot,
+  fact_checker: Bot,
   editor: Cpu,
+  auditor: Search,
+  writer: Brain,
 };
 
-function getAgentIcon(name: string): React.ElementType {
+function getAgentIcon(name: string): LucideIcon {
   const lower = name.toLowerCase();
   for (const [key, icon] of Object.entries(agentIcons)) {
     if (lower.includes(key)) return icon;

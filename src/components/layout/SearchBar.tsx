@@ -6,6 +6,7 @@ import { useState } from "react";
 export function SearchBar() {
   const router = useRouter();
   const [query, setQuery] = useState("");
+  const [focused, setFocused] = useState(false);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -21,8 +22,17 @@ export function SearchBar() {
         type="search"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
         placeholder="Pesquisar..."
-        className="h-9 w-40 rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm placeholder-gray-400 outline-none transition-all focus:w-56 focus:border-blue-500 focus:bg-white focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:placeholder-gray-500 dark:focus:border-blue-400 dark:focus:bg-gray-900 sm:w-48 sm:focus:w-64"
+        className="h-9 w-40 rounded-lg border px-3 text-sm outline-none transition-all focus:w-56 focus:ring-1 sm:w-48 sm:focus:w-64"
+        style={{
+          borderColor: focused ? "var(--accent)" : "var(--border-primary)",
+          background: focused ? "var(--surface-elevated)" : "var(--surface-secondary)",
+          color: "var(--text-primary)",
+          // @ts-expect-error -- CSS custom property for focus ring
+          "--tw-ring-color": "var(--accent)",
+        }}
       />
     </form>
   );

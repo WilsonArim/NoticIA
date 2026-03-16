@@ -80,17 +80,19 @@ class RSSCollector(BaseCollector):
             if not title or not link:
                 continue
             content = entry.get("summary", "") or entry.get("description", "") or title
-            events.append(self._make_event(
+            event = self._make_event(
                 title=title,
                 content=content,
                 url=link,
                 published_at=self._parse_rss_date(entry),
                 raw_metadata={"feed_name": name, "feed_url": url},
-            ))
+            )
+            if event is not None:
+                events.append(event)
         return events
 
     @staticmethod
-    def _parse_rss_date(entry) -> datetime:
+    def _parse_rss_date(entry) -> datetime | None:
         for field in ("published_parsed", "updated_parsed"):
             parsed = entry.get(field)
             if parsed:
@@ -105,4 +107,4 @@ class RSSCollector(BaseCollector):
                     return parsedate_to_datetime(raw)
                 except (TypeError, ValueError):
                     continue
-        return datetime.utcnow()
+        return None

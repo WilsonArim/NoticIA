@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Globe, FileText, Database, Check, X, ExternalLink } from "lucide-react";
+import { Globe, FileText, Database, Check, X, ExternalLink, type LucideIcon } from "lucide-react";
 import type { Source } from "@/types/source";
 import { getCertaintyHSL } from "@/lib/utils/certainty-color";
 
@@ -15,7 +15,7 @@ interface SourceConstellationProps {
   sources: SourceWithRelation[];
 }
 
-const typeIcons: Record<string, React.ElementType> = {
+const typeIcons: Record<string, LucideIcon> = {
   web: Globe,
   pdf: FileText,
   api: Database,

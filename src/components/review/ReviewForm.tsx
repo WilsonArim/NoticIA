@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { Button } from "@/components/ui/Button";
 
 interface ReviewFormProps {
   reviewId: string;
@@ -79,55 +80,78 @@ export function ReviewForm({ reviewId, articleId }: ReviewFormProps) {
 
   if (success) {
     return (
-      <div className="rounded-xl border border-green-200 bg-green-50 p-6 text-center dark:border-green-800 dark:bg-green-950">
-        <p className="text-lg font-semibold text-green-700 dark:text-green-400">
+      <div
+        className="rounded-xl border p-6 text-center"
+        style={{
+          borderColor: "color-mix(in srgb, var(--area-economia) 30%, transparent)",
+          background: "color-mix(in srgb, var(--area-economia) 8%, transparent)",
+        }}
+      >
+        <p
+          className="text-lg font-semibold"
+          style={{ color: "var(--area-economia)" }}
+        >
           {status === "approved" ? "Artigo aprovado!" : status === "rejected" ? "Artigo rejeitado." : "Revisao enviada."}
         </p>
-        <p className="mt-1 text-sm text-green-600 dark:text-green-500">
+        <p
+          className="mt-1 text-sm"
+          style={{ color: "color-mix(in srgb, var(--area-economia) 70%, var(--text-primary))" }}
+        >
           A redirecionar...
         </p>
       </div>
     );
   }
 
+  const options = [
+    {
+      value: "approved" as const,
+      label: "Aprovar",
+      desc: "Publicar o artigo",
+      color: "var(--area-economia)",
+    },
+    {
+      value: "rejected" as const,
+      label: "Rejeitar",
+      desc: "Nao publicar",
+      color: "var(--area-politica)",
+    },
+    {
+      value: "needs_revision" as const,
+      label: "Precisa Revisao",
+      desc: "Devolver para edicao",
+      color: "var(--area-energia)",
+    },
+  ];
+
   return (
     <form
       onSubmit={handleSubmit}
-      className="space-y-4 rounded-xl border border-gray-200 p-6 dark:border-gray-800"
+      className="glow-card space-y-4 p-6"
     >
-      <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+      <h3
+        className="text-lg font-semibold"
+        style={{ color: "var(--text-primary)" }}
+      >
         Decisao
       </h3>
 
       {/* Decision radio buttons */}
       <div className="space-y-2">
-        {[
-          {
-            value: "approved" as const,
-            label: "Aprovar",
-            desc: "Publicar o artigo",
-            color: "text-green-600 dark:text-green-400",
-          },
-          {
-            value: "rejected" as const,
-            label: "Rejeitar",
-            desc: "Nao publicar",
-            color: "text-red-600 dark:text-red-400",
-          },
-          {
-            value: "needs_revision" as const,
-            label: "Precisa Revisao",
-            desc: "Devolver para edicao",
-            color: "text-orange-600 dark:text-orange-400",
-          },
-        ].map((option) => (
+        {options.map((option) => (
           <label
             key={option.value}
-            className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-all ${
-              status === option.value
-                ? "border-blue-500 bg-blue-50 dark:border-blue-400 dark:bg-blue-950"
-                : "border-gray-200 hover:border-gray-300 dark:border-gray-700 dark:hover:border-gray-600"
-            }`}
+            className="flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition-all"
+            style={{
+              borderColor:
+                status === option.value
+                  ? "var(--accent)"
+                  : "var(--border-primary)",
+              background:
+                status === option.value
+                  ? "color-mix(in srgb, var(--accent) 8%, transparent)"
+                  : "transparent",
+            }}
           >
             <input
               type="radio"
@@ -137,13 +161,18 @@ export function ReviewForm({ reviewId, articleId }: ReviewFormProps) {
               onChange={(e) =>
                 setStatus(e.target.value as typeof status)
               }
-              className="h-4 w-4 text-blue-600"
+              className="h-4 w-4 accent-[var(--accent)]"
             />
             <div>
-              <span className={`text-sm font-medium ${option.color}`}>
+              <span
+                className="text-sm font-medium"
+                style={{ color: option.color }}
+              >
                 {option.label}
               </span>
-              <p className="text-xs text-gray-400">{option.desc}</p>
+              <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
+                {option.desc}
+              </p>
             </div>
           </label>
         ))}
@@ -153,7 +182,8 @@ export function ReviewForm({ reviewId, articleId }: ReviewFormProps) {
       <div>
         <label
           htmlFor="notes"
-          className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
+          className="mb-1 block text-sm font-medium"
+          style={{ color: "var(--text-secondary)" }}
         >
           Notas (opcional)
         </label>
@@ -163,23 +193,43 @@ export function ReviewForm({ reviewId, articleId }: ReviewFormProps) {
           onChange={(e) => setNotes(e.target.value)}
           rows={4}
           placeholder="Observacoes sobre a decisao..."
-          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800"
+          className="w-full rounded-xl border px-3 py-2 text-sm outline-none transition-colors focus:ring-1"
+          style={{
+            borderColor: "var(--border-primary)",
+            background: "var(--surface-elevated)",
+            color: "var(--text-primary)",
+            // @ts-expect-error -- CSS custom property for focus ring
+            "--tw-ring-color": "var(--accent)",
+          }}
+          onFocus={(e) => {
+            e.currentTarget.style.borderColor = "var(--accent)";
+          }}
+          onBlur={(e) => {
+            e.currentTarget.style.borderColor = "var(--border-primary)";
+          }}
         />
       </div>
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600 dark:border-red-800 dark:bg-red-950 dark:text-red-400">
+        <div
+          className="rounded-lg border p-3 text-sm"
+          style={{
+            borderColor: "color-mix(in srgb, var(--area-politica) 30%, transparent)",
+            background: "color-mix(in srgb, var(--area-politica) 8%, transparent)",
+            color: "var(--area-politica)",
+          }}
+        >
           {error}
         </div>
       )}
 
-      <button
+      <Button
         type="submit"
         disabled={submitting}
-        className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+        className="w-full"
       >
         {submitting ? "A submeter..." : "Submeter Decisao"}
-      </button>
+      </Button>
     </form>
   );
 }

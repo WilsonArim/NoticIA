@@ -4,6 +4,7 @@ import "./globals.css";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
+import { MotionProvider } from "@/components/providers/MotionProvider";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -18,18 +19,18 @@ const playfair = Playfair_Display({
 
 export const metadata: Metadata = {
   title: {
-    default: "Curador de Noticias",
-    template: "%s | Curador de Noticias",
+    default: "NoticIA",
+    template: "%s | NoticIA",
   },
   description:
-    "Plataforma de jornalismo feito por IA de forma independente. Cada artigo mostra fontes, raciocinio e nivel de confianca.",
+    "Plataforma de jornalismo feito por IA de forma independente. Cada artigo mostra fontes, raciocínio e nível de confiança.",
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
   ),
   openGraph: {
     type: "website",
     locale: "pt_PT",
-    siteName: "Curador de Noticias",
+    siteName: "NoticIA",
   },
 };
 
@@ -58,12 +59,20 @@ export default function RootLayout({
       <body
         className={`${inter.variable} ${playfair.variable} font-sans antialiased`}
       >
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-blue-600 focus:px-4 focus:py-2 focus:text-white focus:outline-none"
+        >
+          Saltar para o conteúdo
+        </a>
         <ThemeProvider>
-          <div className="flex min-h-screen flex-col">
-            <Header />
-            <main className="flex-1">{children}</main>
-            <Footer />
-          </div>
+          <MotionProvider>
+            <div className="flex min-h-screen flex-col">
+              <Header />
+              <main id="main-content" className="flex-1">{children}</main>
+              <Footer />
+            </div>
+          </MotionProvider>
         </ThemeProvider>
       </body>
     </html>

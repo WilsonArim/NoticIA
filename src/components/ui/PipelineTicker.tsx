@@ -14,21 +14,22 @@ export async function PipelineTicker() {
     supabase
       .from("articles")
       .select("*", { count: "exact", head: true })
+      .eq("status", "published")
       .gte("created_at", yesterday),
     supabase
       .from("agent_logs")
       .select("*", { count: "exact", head: true })
       .gte("created_at", yesterday),
     supabase
-      .from("hitl_reviews")
+      .from("articles")
       .select("*", { count: "exact", head: true })
-      .eq("status", "pending"),
+      .eq("status", "review"),
   ]);
 
   const items = [
-    `${articlesToday ?? 0} artigos nas ultimas 24h`,
-    `${logsToday ?? 0} operacoes de pipeline`,
-    `${pendingReviews ?? 0} revisoes pendentes`,
+    `${articlesToday ?? 0} artigos nas últimas 24h`,
+    `${logsToday ?? 0} operações de pipeline`,
+    `${pendingReviews ?? 0} revisões pendentes`,
     "Pipeline multi-agente ativa",
   ];
 

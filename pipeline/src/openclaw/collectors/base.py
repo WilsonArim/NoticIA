@@ -3,12 +3,14 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 import httpx
 
 from openclaw.models import RawEvent
+
+MAX_EVENT_AGE_HOURS = 72  # Reject events older than 72 hours
 
 
 class BaseCollector(ABC):
@@ -42,12 +44,25 @@ class BaseCollector(ABC):
         url: str,
         published_at: datetime | None = None,
         raw_metadata: dict[str, Any] | None = None,
-    ) -> RawEvent:
+    ) -> RawEvent | None:
+        if published_at is None:
+            self.logger.debug("Event sem published_at, rejeitado: %s", title[:80])
+            return None
+
+        age = datetime.utcnow() - published_at
+        if age > timedelta(hours=MAX_EVENT_AGE_HOURS):
+            self.logger.debug(
+                "Event demasiado velho (%.1fh): %s",
+                age.total_seconds() / 3600,
+                title[:80],
+            )
+            return None
+
         return RawEvent(
             source_collector=self.name,
             title=title,
             content=content,
             url=url,
-            published_at=published_at or datetime.utcnow(),
+            published_at=published_at,
             raw_metadata=raw_metadata or {},
         )

@@ -9,10 +9,12 @@ import {
   Trophy,
   Globe,
   Tag,
+  type LucideIcon,
 } from "lucide-react";
 import { getAreaColor } from "@/lib/utils/certainty-color";
+import { humanizeTag } from "@/lib/utils/humanize-tag";
 
-const areaIcons: Record<string, React.ElementType> = {
+const areaIcons: Record<string, LucideIcon> = {
   politica: Landmark,
   economia: TrendingUp,
   tecnologia: Cpu,
@@ -58,7 +60,7 @@ export function AreaChip({ area, size = "sm" }: AreaChipProps) {
       }}
     >
       <Icon size={iconSize} />
-      {area}
+      {humanizeTag(area)}
     </span>
   );
 }

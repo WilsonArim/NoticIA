@@ -11,10 +11,10 @@ SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
 PUBLISH_API_KEY = os.getenv("PUBLISH_API_KEY", "")
 XAI_API_KEY = os.getenv("XAI_API_KEY", "")
 XAI_BASE_URL = "https://api.x.ai/v1"
-XAI_MODEL = "grok-4.1-fast"
+XAI_MODEL = "grok-4-1-fast-reasoning"
 EVENT_REGISTRY_API_KEY = os.getenv("EVENT_REGISTRY_API_KEY", "")
-ACLED_API_KEY = os.getenv("ACLED_API_KEY", "")
 ACLED_EMAIL = os.getenv("ACLED_EMAIL", "")
+ACLED_PASSWORD = os.getenv("ACLED_PASSWORD", "")
 TELEGRAM_API_ID = os.getenv("TELEGRAM_API_ID", "")
 TELEGRAM_API_HASH = os.getenv("TELEGRAM_API_HASH", "")
 X_BEARER_TOKEN = os.getenv("X_BEARER_TOKEN", "")
@@ -27,7 +27,7 @@ EDGE_RECEIVE_CLAIMS = f"{EDGE_FUNCTION_BASE}/receive-claims"
 EDGE_RECEIVE_RATIONALE = f"{EDGE_FUNCTION_BASE}/receive-rationale"
 EDGE_AGENT_LOG = f"{EDGE_FUNCTION_BASE}/agent-log"
 
-# --- GDELT Queries (14 areas) ---
+# --- GDELT Queries (20 areas) ---
 GDELT_QUERIES: dict[str, str] = {
     "geopolitics": "sanctions OR diplomacy OR nato OR sovereignty OR territorial dispute",
     "defense": "military OR missile OR armed forces OR weapons OR deployment OR drone strike",
@@ -43,6 +43,12 @@ GDELT_QUERIES: dict[str, str] = {
     "financial_markets": "stock market OR Nasdaq OR bond yield OR forex OR commodities OR earnings",
     "society": "protest OR human rights OR refugee OR migration OR inequality OR censorship",
     "sports": "FIFA OR UEFA OR Olympics OR doping OR World Cup OR corruption sport",
+    "intl_politics": "election OR regime change OR political crisis OR government collapse OR impeachment OR parliament",
+    "diplomacy": "peace talks OR treaty OR ambassador OR diplomatic OR UN summit OR bilateral agreement",
+    "defense_strategy": "defense budget OR arms deal OR military alliance OR naval exercise OR nuclear proliferation",
+    "disinfo": "disinformation OR misinformation OR fake news OR propaganda OR bot network OR deep fake",
+    "human_rights": "genocide OR human rights OR political prisoner OR torture OR war crime OR persecution",
+    "organized_crime": "drug trafficking OR money laundering OR cartel OR mafia OR organized crime OR human trafficking",
 }
 
 # --- Breaking Signals (force P1) ---

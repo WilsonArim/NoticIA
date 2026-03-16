@@ -5,11 +5,23 @@ import { CertaintyIndex } from "@/components/article/CertaintyIndex";
 import { ClaimReviewBadge } from "@/components/article/ClaimReviewBadge";
 import { SourceConstellation } from "@/components/article/SourceConstellation";
 import { RationaleRiver } from "@/components/article/RationaleRiver";
+import { BiasIndicator } from "@/components/article/BiasIndicator";
 import { AreaChip } from "@/components/ui/AreaChip";
 import { GlowCard } from "@/components/ui/GlowCard";
 import { formatFullDate, toISOString } from "@/lib/utils/format-date";
 import { getAreaColor, getCertaintyHSL } from "@/lib/utils/certainty-color";
 import type { Source } from "@/types/source";
+import { humanizeTag } from "@/lib/utils/humanize-tag";
+import { LazyConfidenceRing } from "@/components/3d/LazyConfidenceRing";
+import { VerificationStamp } from "@/components/article/VerificationStamp";
+import { sanitizeHtml } from "@/lib/utils/sanitize-html";
+
+/** Strip the first H1 and H2 from HTML to avoid duplicate title/subtitle */
+function stripLeadingHeadings(html: string): string {
+  let result = html.replace(/<h1[^>]*>[\s\S]*?<\/h1>/, "");
+  result = result.replace(/<h2[^>]*>[\s\S]*?<\/h2>/, "");
+  return result.trim();
+}
 
 export const revalidate = 60;
 
@@ -129,7 +141,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
           claimReviewed:
             (articleClaims[0]?.claim as unknown as { original_text: string })
               ?.original_text || article.title,
-          author: { "@type": "Organization", name: "Curador de Noticias" },
+          author: { "@type": "Organization", name: "NoticIA" },
           reviewRating: {
             "@type": "Rating",
             ratingValue: Math.round(article.certainty_score * 5),
@@ -171,6 +183,17 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
             style={{ background: areaColor }}
           />
 
+          {/* Verification stamp — large, prominent */}
+          {article.verification_status && article.verification_status !== "none" && (
+            <div className="mb-4">
+              <VerificationStamp
+                status={article.verification_status}
+                verificationChangedAt={article.verification_changed_at}
+                size="lg"
+              />
+            </div>
+          )}
+
           <div className="mb-4 flex flex-wrap items-center gap-3">
             <AreaChip area={article.area} size="md" />
             {article.tags &&
@@ -183,7 +206,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
                     background: "var(--surface-secondary)",
                   }}
                 >
-                  {tag}
+                  {humanizeTag(tag)}
                 </span>
               ))}
           </div>
@@ -215,13 +238,13 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
             )}
             <span style={{ color: "var(--border-primary)" }}>|</span>
             <span>
-              {article.language === "pt" ? "Portugues" : article.language}
+              {article.language === "pt" ? "Português" : article.language}
             </span>
           </div>
 
-          {/* Certainty */}
+          {/* Certainty — 3D ring on desktop, 2D fallback elsewhere */}
           <div className="mt-6 flex items-center gap-4">
-            <CertaintyIndex score={article.certainty_score} size="lg" showLabel />
+            <LazyConfidenceRing score={article.certainty_score} />
             <span
               className="text-xs font-medium uppercase tracking-wider"
               style={{ color: "var(--text-tertiary)" }}
@@ -229,6 +252,14 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
               Indice de Confianca
             </span>
           </div>
+
+          {/* Bias Analysis */}
+          {(article.bias_score !== null || article.bias_analysis) && (
+            <BiasIndicator
+              biasScore={article.bias_score}
+              biasAnalysis={article.bias_analysis as Parameters<typeof BiasIndicator>[0]["biasAnalysis"]}
+            />
+          )}
         </header>
 
         {/* ── Lead ── */}
@@ -244,10 +275,44 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
           </p>
         )}
 
+        {/* ── Verification / Debunk Banner ── */}
+        {article.verification_status === "debunked" && (
+          <div
+            className="mb-8 rounded-xl border-2 p-5"
+            style={{
+              borderColor: "#dc2626",
+              background: "rgba(220, 38, 38, 0.06)",
+            }}
+          >
+            <p className="font-serif text-lg font-bold" style={{ color: "#dc2626" }}>
+              ⚠ Este artigo foi verificado e classificado como FALSO.
+            </p>
+            {article.debunk_note && (
+              <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                {article.debunk_note}
+              </p>
+            )}
+          </div>
+        )}
+
+        {article.verification_status === "under_review" && (
+          <div
+            className="mb-8 rounded-xl border-2 p-5"
+            style={{
+              borderColor: "#d97706",
+              background: "rgba(217, 119, 6, 0.06)",
+            }}
+          >
+            <p className="text-sm font-medium leading-relaxed" style={{ color: "#d97706" }}>
+              ⚠ Este artigo contém fontes com enviesamento significativo e está em processo de verificação.
+            </p>
+          </div>
+        )}
+
         {/* ── Body ── */}
-        <div className="prose prose-lg max-w-none dark:prose-invert">
+        <div className="prose prose-lg max-w-none dark:prose-invert" style={{ textAlign: "justify", hyphens: "auto", WebkitHyphens: "auto" }}>
           {article.body_html ? (
-            <div dangerouslySetInnerHTML={{ __html: article.body_html }} />
+            <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(stripLeadingHeadings(article.body_html)) }} />
           ) : (
             article.body
               .split("\n\n")
@@ -303,39 +368,47 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
                     >
                       {claim.original_text}
                     </p>
-                    {/* S-P-O Triplet */}
-                    <div className="flex flex-wrap gap-1.5">
-                      <span
-                        className="rounded-full px-2 py-0.5 text-xs font-medium"
-                        style={{
-                          color: "var(--area-ciencia)",
-                          background:
-                            "color-mix(in srgb, var(--area-ciencia) 12%, transparent)",
-                        }}
+                    {/* S-P-O Triplet — collapsible technical detail */}
+                    <details className="group">
+                      <summary
+                        className="cursor-pointer text-xs font-medium select-none"
+                        style={{ color: "var(--text-tertiary)" }}
                       >
-                        S: {claim.subject}
-                      </span>
-                      <span
-                        className="rounded-full px-2 py-0.5 text-xs font-medium"
-                        style={{
-                          color: "var(--area-tecnologia)",
-                          background:
-                            "color-mix(in srgb, var(--area-tecnologia) 12%, transparent)",
-                        }}
-                      >
-                        P: {claim.predicate}
-                      </span>
-                      <span
-                        className="rounded-full px-2 py-0.5 text-xs font-medium"
-                        style={{
-                          color: "var(--area-saude)",
-                          background:
-                            "color-mix(in srgb, var(--area-saude) 12%, transparent)",
-                        }}
-                      >
-                        O: {claim.object}
-                      </span>
-                    </div>
+                        Ver detalhes técnicos
+                      </summary>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        <span
+                          className="rounded-full px-2 py-0.5 text-xs font-medium"
+                          style={{
+                            color: "var(--area-ciencia)",
+                            background:
+                              "color-mix(in srgb, var(--area-ciencia) 12%, transparent)",
+                          }}
+                        >
+                          {claim.subject}
+                        </span>
+                        <span
+                          className="rounded-full px-2 py-0.5 text-xs font-medium"
+                          style={{
+                            color: "var(--area-tecnologia)",
+                            background:
+                              "color-mix(in srgb, var(--area-tecnologia) 12%, transparent)",
+                          }}
+                        >
+                          {claim.predicate}
+                        </span>
+                        <span
+                          className="rounded-full px-2 py-0.5 text-xs font-medium"
+                          style={{
+                            color: "var(--area-saude)",
+                            background:
+                              "color-mix(in srgb, var(--area-saude) 12%, transparent)",
+                          }}
+                        >
+                          {claim.object}
+                        </span>
+                      </div>
+                    </details>
                   </GlowCard>
                 );
               })}

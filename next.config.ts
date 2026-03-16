@@ -14,8 +14,14 @@ const nextConfig: NextConfig = {
   compress: true,
 
   experimental: {
-    optimizePackageImports: ["@supabase/supabase-js", "@supabase/ssr"],
+    optimizePackageImports: ["@supabase/supabase-js"],
   },
+
+  turbopack: {
+    resolveExtensions: [".ts", ".tsx", ".js", ".jsx", ".json"],
+  },
+
+  serverExternalPackages: ["@supabase/ssr"],
 
   async headers() {
     return [

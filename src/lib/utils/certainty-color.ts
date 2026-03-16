@@ -108,6 +108,12 @@ export function getAreaColor(area: string): string {
     cultura: "var(--area-cultura)",
     desporto: "var(--area-desporto)",
     mundo: "var(--area-mundo)",
+    politica_intl: "var(--area-politica)",
+    diplomacia: "var(--area-mundo)",
+    defesa_estrategica: "var(--area-desporto)",
+    desinformacao: "var(--area-sociedade)",
+    direitos_humanos: "var(--area-saude)",
+    crime_organizado: "var(--area-cultura)",
   };
   return areaMap[normalized] || "var(--area-default)";
 }

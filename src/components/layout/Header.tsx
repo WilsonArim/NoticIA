@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { NavLink } from "./NavLink";
 import { SearchBar } from "./SearchBar";
 import { DarkModeToggle } from "./DarkModeToggle";
 import { MobileMenu } from "./MobileMenu";
+import { MegaMenu } from "./MegaMenu";
 
 export function Header() {
   return (
@@ -16,7 +18,7 @@ export function Header() {
             className="relative flex h-8 w-8 items-center justify-center rounded-lg font-serif text-sm font-bold text-white"
             style={{ background: "var(--accent)" }}
           >
-            C
+            N
             <span
               className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full animate-pulse-glow"
               style={{ background: "var(--accent)" }}
@@ -26,26 +28,16 @@ export function Header() {
             className="hidden font-serif text-xl font-bold tracking-tight sm:inline"
             style={{ color: "var(--text-primary)" }}
           >
-            CURADOR
+            NoticIA
           </span>
         </Link>
 
         {/* Desktop navigation */}
         <nav className="hidden items-center gap-0.5 md:flex">
-          {[
-            { href: "/articles", label: "Artigos" },
-            { href: "/search", label: "Pesquisar" },
-            { href: "/dashboard", label: "Observatorio" },
-          ].map(({ href, label }) => (
-            <Link
-              key={href}
-              href={href}
-              className="relative rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:opacity-70"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              {label}
-            </Link>
-          ))}
+          <NavLink href="/categoria" label="Últimas" />
+          <MegaMenu />
+          <NavLink href="/cronistas" label="Cronistas" />
+          <NavLink href="/search" label="Pesquisar" />
         </nav>
 
         {/* Right side */}

@@ -1,19 +1,42 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
+const ALLOWED_ORIGINS = [
+  "https://noticia-curador.vercel.app",
+  "http://localhost:3000",
+];
+
+function getCorsHeaders(req: Request) {
+  const origin = req.headers.get("origin") ?? "";
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  return {
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Headers":
+      "authorization, x-client-info, apikey, content-type",
+    "Vary": "Origin",
+  };
+}
+
+function constantTimeEquals(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  const encoder = new TextEncoder();
+  const bufA = encoder.encode(a);
+  const bufB = encoder.encode(b);
+  let mismatch = 0;
+  for (let i = 0; i < bufA.length; i++) {
+    mismatch |= bufA[i] ^ bufB[i];
+  }
+  return mismatch === 0;
+}
 
 function jsonResponse(
   body: Record<string, unknown>,
-  status: number
+  status: number,
+  req: Request
 ): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
   });
 }
 
@@ -26,15 +49,7 @@ function validateEnvVars(): {
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const publishApiKey = Deno.env.get("PUBLISH_API_KEY");
   if (!supabaseUrl || !serviceRoleKey || !publishApiKey) {
-    throw new Error(
-      `Missing env vars: ${[
-        !supabaseUrl && "SUPABASE_URL",
-        !serviceRoleKey && "SUPABASE_SERVICE_ROLE_KEY",
-        !publishApiKey && "PUBLISH_API_KEY",
-      ]
-        .filter(Boolean)
-        .join(", ")}`
-    );
+    throw new Error("Missing required environment variables");
   }
   return { supabaseUrl, serviceRoleKey, publishApiKey };
 }
@@ -55,7 +70,7 @@ function validateNumericScore(
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return new Response("ok", { headers: getCorsHeaders(req) });
   }
 
   try {
@@ -66,8 +81,8 @@ Deno.serve(async (req: Request) => {
     const token = authHeader?.startsWith("Bearer ")
       ? authHeader.slice(7)
       : authHeader;
-    if (token !== publishApiKey) {
-      return jsonResponse({ error: "Unauthorized: invalid API key" }, 401);
+    if (!token || !constantTimeEquals(token, publishApiKey)) {
+      return jsonResponse({ error: "Unauthorized: invalid API key" }, 401, req);
     }
 
     const body = await req.json();
@@ -102,7 +117,8 @@ Deno.serve(async (req: Request) => {
           error:
             "Missing required fields: slug, title, body, area, certainty_score",
         },
-        400
+        400,
+        req
       );
     }
 
@@ -114,7 +130,8 @@ Deno.serve(async (req: Request) => {
     if (certainty_score === null) {
       return jsonResponse(
         { error: "certainty_score is required and must be numeric" },
-        400
+        400,
+        req
       );
     }
     const impact_score = validateNumericScore(rawImpact, "impact_score");
@@ -136,11 +153,9 @@ Deno.serve(async (req: Request) => {
 
       if (existingError) {
         return jsonResponse(
-          {
-            error: "Failed to lookup existing sources",
-            details: existingError.message,
-          },
-          500
+          { error: "Failed to lookup existing sources" },
+          500,
+          req
         );
       }
 
@@ -179,11 +194,9 @@ Deno.serve(async (req: Request) => {
 
         if (insertError) {
           return jsonResponse(
-            {
-              error: "Failed to insert sources",
-              details: insertError.message,
-            },
-            500
+            { error: "Failed to insert sources" },
+            500,
+            req
           );
         }
 
@@ -221,8 +234,9 @@ Deno.serve(async (req: Request) => {
 
       if (claimError) {
         return jsonResponse(
-          { error: "Failed to insert claims", details: claimError.message },
-          500
+          { error: "Failed to insert claims" },
+          500,
+          req
         );
       }
 
@@ -255,19 +269,39 @@ Deno.serve(async (req: Request) => {
           .insert(claimSourceRows);
         if (csError) {
           return jsonResponse(
-            {
-              error: "Failed to insert claim_sources",
-              details: csError.message,
-            },
-            500
+            { error: "Failed to insert claim_sources" },
+            500,
+            req
           );
         }
       }
     }
 
-    // 3. Insert article
+    // 3. Idempotency: check if article with same slug already exists
+    const { data: existingArticle } = await supabase
+      .from("articles")
+      .select("id, slug, status")
+      .eq("slug", slug)
+      .maybeSingle();
+
+    if (existingArticle) {
+      return jsonResponse(
+        {
+          success: true,
+          article_id: existingArticle.id,
+          slug: existingArticle.slug,
+          status: existingArticle.status,
+          duplicate: true,
+          note: "Article with this slug already exists",
+        },
+        200,
+        req
+      );
+    }
+
+    // 4. Insert article
     const finalStatus =
-      certainty_score < 0.8 ? "review" : articleStatus || "published";
+      certainty_score < 0.9 ? "review" : articleStatus || "published";
     const publishedAt =
       finalStatus === "published" ? new Date().toISOString() : null;
 
@@ -294,12 +328,16 @@ Deno.serve(async (req: Request) => {
 
     if (articleError) {
       return jsonResponse(
-        { error: "Failed to insert article", details: articleError.message },
-        500
+        { error: "Failed to insert article" },
+        500,
+        req
       );
     }
 
-    // 4. Batch article_claims junctions (with error handling)
+    // 5. Post-article inserts — collect errors instead of silently swallowing
+    const warnings: string[] = [];
+
+    // 5a. Batch article_claims junctions
     const claimPositions = Object.entries(claimIdMap);
     if (claimPositions.length > 0) {
       const articleClaimsData = claimPositions.map(
@@ -314,10 +352,11 @@ Deno.serve(async (req: Request) => {
         .insert(articleClaimsData);
       if (acError) {
         console.error("Failed to insert article_claims:", acError);
+        warnings.push(`article_claims: ${acError.message}`);
       }
     }
 
-    // 5. Rationale chain (with safe claim_id resolution)
+    // 5b. Rationale chain
     if (
       rationale_chain &&
       Array.isArray(rationale_chain) &&
@@ -345,11 +384,12 @@ Deno.serve(async (req: Request) => {
         .insert(rationaleData);
       if (rcError) {
         console.error("Failed to insert rationale_chains:", rcError);
+        warnings.push(`rationale_chains: ${rcError.message}`);
       }
     }
 
-    // 6. HITL review if certainty < 80%
-    if (certainty_score < 0.8) {
+    // 5c. HITL review if certainty < 90%
+    if (certainty_score < 0.9) {
       const { error: hitlError } = await supabase
         .from("hitl_reviews")
         .insert({
@@ -357,12 +397,13 @@ Deno.serve(async (req: Request) => {
           reason:
             certainty_score < 0.5
               ? "Certainty score critically low"
-              : "Certainty score below threshold (80%)",
+              : "Certainty score below threshold (90%)",
           confidence_at_trigger: certainty_score,
           status: "pending",
         });
       if (hitlError) {
         console.error("Failed to insert hitl_review:", hitlError);
+        warnings.push(`hitl_review: ${hitlError.message}`);
       }
     }
 
@@ -372,20 +413,16 @@ Deno.serve(async (req: Request) => {
         article_id: article.id,
         slug: article.slug,
         status: article.status,
-        needs_review: certainty_score < 0.8,
+        needs_review: certainty_score < 0.9,
         sources_inserted: Object.keys(sourceIdMap).length,
         claims_inserted: Object.keys(claimIdMap).length,
+        ...(warnings.length > 0 && { warnings }),
       },
-      201
+      warnings.length > 0 ? 207 : 201,
+      req
     );
   } catch (error) {
-    console.error("receive-article error:", error);
-    return jsonResponse(
-      {
-        error: "Internal server error",
-        details: (error as Error).message,
-      },
-      500
-    );
+    console.error("[receive-article] Internal error:", error);
+    return jsonResponse({ error: "Internal server error" }, 500, req);
   }
 });

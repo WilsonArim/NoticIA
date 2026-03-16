@@ -104,7 +104,7 @@ export function CounterfactualExplorer({
       </div>
 
       <p className="text-xs text-gray-500 dark:text-gray-400">
-        Desmarque fontes para ver como a confianca mudaria sem elas.
+        Desmarque fontes para ver como a confiança mudaria sem elas.
       </p>
 
       {/* Source checkboxes */}

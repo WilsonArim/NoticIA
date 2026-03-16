@@ -55,6 +55,20 @@
   --area-desporto: #65a30d;
   --area-mundo: #0284c7;
   --area-default: #6b7280;
+  --area-geopolitica: #1d4ed8;
+  --area-defesa: #475569;
+  --area-energia: #d97706;
+  --area-crypto: #8b5cf6;
+  --area-financas: #059669;
+  --area-portugal: #dc2626;
+  --area-clima: #15803d;
+  --area-desinformacao: #b91c1c;
+  --area-politica-intl: #7c3aed;
+  --area-diplomacia: #0369a1;
+  --area-defesa-estrategica: #64748b;
+  --area-regulacao: #6d28d9;
+  --area-crime-organizado: #be123c;
+  --area-direitos-humanos: #0891b2;
 }
 
 .dark {
@@ -106,6 +120,51 @@ body {
     background-color: var(--accent-soft);
     color: var(--text-primary);
   }
+}
+
+/* ── Prose justify — artigos e crónicas ── */
+.prose p,
+.prose li,
+.prose blockquote {
+  text-align: justify !important;
+  hyphens: auto;
+  -webkit-hyphens: auto;
+}
+
+/* ── Images inside prose (body_html) — fit to container ── */
+.prose img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.75rem;
+  object-fit: cover;
+}
+
+.prose figure {
+  max-width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+/* ── Cronista hero banner ── */
+.cronista-hero {
+  aspect-ratio: 21 / 9;
+  min-height: 280px;
+  max-height: 420px;
+}
+
+.cronista-hero img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 20%;
+}
+
+/* ── Cronista avatar (cards & bars) ── */
+.cronista-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
 }
 
 /* ── Prose dark mode ── */

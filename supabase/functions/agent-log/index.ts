@@ -1,25 +1,48 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
+const ALLOWED_ORIGINS = [
+  "https://noticia-curador.vercel.app",
+  "http://localhost:3000",
+];
+
+function getCorsHeaders(req: Request) {
+  const origin = req.headers.get("origin") ?? "";
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  return {
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Headers":
+      "authorization, x-client-info, apikey, content-type",
+    "Vary": "Origin",
+  };
+}
+
+function constantTimeEquals(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  const encoder = new TextEncoder();
+  const bufA = encoder.encode(a);
+  const bufB = encoder.encode(b);
+  let mismatch = 0;
+  for (let i = 0; i < bufA.length; i++) {
+    mismatch |= bufA[i] ^ bufB[i];
+  }
+  return mismatch === 0;
+}
 
 function jsonResponse(
   body: Record<string, unknown>,
-  status: number
+  status: number,
+  req: Request
 ): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
   });
 }
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return new Response("ok", { headers: getCorsHeaders(req) });
   }
 
   try {
@@ -36,8 +59,8 @@ Deno.serve(async (req: Request) => {
     const token = authHeader?.startsWith("Bearer ")
       ? authHeader.slice(7)
       : authHeader;
-    if (token !== publishApiKey) {
-      return jsonResponse({ error: "Unauthorized: invalid API key" }, 401);
+    if (!token || !constantTimeEquals(token, publishApiKey)) {
+      return jsonResponse({ error: "Unauthorized: invalid API key" }, 401, req);
     }
 
     const body = await req.json();
@@ -49,19 +72,22 @@ Deno.serve(async (req: Request) => {
       if (!log.agent_name || typeof log.agent_name !== "string") {
         return jsonResponse(
           { error: `logs[${i}]: agent_name is required (string)` },
-          400
+          400,
+          req
         );
       }
       if (!log.run_id || typeof log.run_id !== "string") {
         return jsonResponse(
           { error: `logs[${i}]: run_id is required (string)` },
-          400
+          400,
+          req
         );
       }
       if (!log.event_type || typeof log.event_type !== "string") {
         return jsonResponse(
           { error: `logs[${i}]: event_type is required (string)` },
-          400
+          400,
+          req
         );
       }
     }
@@ -113,22 +139,18 @@ Deno.serve(async (req: Request) => {
     if (error) {
       return jsonResponse(
         { error: "Failed to insert agent logs", details: error.message },
-        500
+        500,
+        req
       );
     }
 
     return jsonResponse(
       { success: true, inserted: data.length, logs: data },
-      201
+      201,
+      req
     );
   } catch (error) {
-    console.error("agent-log error:", error);
-    return jsonResponse(
-      {
-        error: "Internal server error",
-        details: (error as Error).message,
-      },
-      500
-    );
+    console.error("[agent-log] Internal error:", error);
+    return jsonResponse({ error: "Internal server error" }, 500, req);
   }
 });

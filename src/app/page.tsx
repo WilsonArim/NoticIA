@@ -5,6 +5,7 @@ import { PipelineTicker } from "@/components/ui/PipelineTicker";
 import type { ArticleCard as ArticleCardType } from "@/types/article";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
+import { Hero3D, HeroGlobe } from "@/components/3d/Hero3D";
 
 export const revalidate = 60;
 
@@ -14,7 +15,7 @@ export default async function HomePage() {
   const { data: articles } = await supabase
     .from("articles")
     .select(
-      "id, slug, title, subtitle, lead, area, certainty_score, impact_score, tags, published_at, created_at, status",
+      "id, slug, title, subtitle, lead, area, certainty_score, impact_score, bias_score, tags, published_at, created_at, status, priority, verification_status, verification_changed_at",
     )
     .eq("status", "published")
     .is("deleted_at", null)
@@ -23,39 +24,43 @@ export default async function HomePage() {
 
   const typedArticles = (articles || []) as ArticleCardType[];
 
-  // Hero: highest certainty article, sidebar: next 3, grid: rest
-  const sorted = [...typedArticles].sort(
-    (a, b) => b.certainty_score - a.certainty_score,
-  );
-  const heroArticle = sorted[0] || null;
-  const sidebarArticles = sorted.slice(1, 4);
-  const gridArticles = sorted.slice(4);
+  // Hero: most recent article, sidebar: next 3, grid: rest
+  // Already ordered by published_at DESC from the query
+  const heroArticle = typedArticles[0] || null;
+  const sidebarArticles = typedArticles.slice(1, 4);
+  const gridArticles = typedArticles.slice(4);
 
   return (
     <>
       <PipelineTicker />
 
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        {/* Editorial Header */}
-        <section className="mb-10">
-          <h1
-            className="font-serif text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl"
-            style={{ color: "var(--text-primary)" }}
-          >
-            Curador de Noticias
-          </h1>
-          <p
-            className="mt-3 max-w-2xl text-lg leading-relaxed"
-            style={{ color: "var(--text-secondary)" }}
-          >
-            Jornalismo feito por IA de forma independente. Cada artigo
-            mostra as fontes, o raciocinio e o nivel de confianca.
-          </p>
+      <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
+        {/* Editorial Header with Globe */}
+        <section className="relative mb-6 grid grid-cols-1 items-center gap-4 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <h1
+              className="font-serif text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl"
+              style={{ color: "var(--text-primary)" }}
+            >
+              NoticIA
+            </h1>
+            <p
+              className="mt-3 max-w-2xl text-lg leading-relaxed"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              Jornalismo feito por IA de forma independente. Cada artigo
+              mostra as fontes, o raciocínio e o nível de confiança.
+            </p>
+          </div>
+          <div className="hidden lg:block">
+            <HeroGlobe />
+          </div>
+          <Hero3D />
         </section>
 
         {/* Newspaper layout: Hero + Sidebar */}
         {heroArticle && (
-          <section className="mb-12 grid grid-cols-1 gap-5 lg:grid-cols-5">
+          <section className="mb-8 grid grid-cols-1 gap-5 lg:grid-cols-5">
             {/* Hero — 3/5 */}
             <div className="lg:col-span-3">
               <ArticleCard article={heroArticle} variant="hero" />
@@ -87,7 +92,7 @@ export default async function HomePage() {
               Mais Artigos
             </h2>
             <Link
-              href="/articles"
+              href="/categoria"
               className="flex items-center gap-1 text-sm font-medium transition-opacity hover:opacity-70"
               style={{ color: "var(--accent)" }}
             >
@@ -96,7 +101,7 @@ export default async function HomePage() {
           </div>
           <ArticleGrid
             articles={gridArticles}
-            emptyMessage="Os agentes estao a trabalhar nos proximos artigos..."
+            emptyMessage="Os agentes estão a trabalhar nos próximos artigos..."
           />
         </section>
       </div>
