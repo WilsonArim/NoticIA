@@ -1,6 +1,14 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
+/**
+ * @deprecated Esta Edge Function esta DEPRECATED desde 16/03/2026.
+ * Substituida por: pipeline-triagem (Cowork scheduled task, cada 30min)
+ * Mantida como backup — NAO e chamada em producao.
+ * Para remover: verificar que a scheduled task equivalente esta ACTIVA
+ * antes de eliminar esta funcao.
+ */
+
 const ALLOWED_ORIGINS = [
   "https://noticia-curador.vercel.app",
   "http://localhost:3000",
