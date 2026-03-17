@@ -23,6 +23,16 @@ const ALLOWED_ATTR = new Set([
 
 const DANGEROUS_PROTOCOLS = /^(javascript|vbscript|data):/i;
 
+/** Remove elementos perigosos incluindo o seu conteúdo (script, style, etc.) */
+function stripDangerousElements(html: string): string {
+  // Remove <script>...</script>, <style>...</style>, etc. com o conteúdo interno
+  return html
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, "")
+    .replace(/<link\b[^>]*>/gi, "")
+    .replace(/<meta\b[^>]*>/gi, "");
+}
+
 /** Remove tags não permitidas, mantendo o seu conteúdo interno */
 function stripDisallowedTags(html: string): string {
   return html.replace(/<\/?([a-zA-Z][a-zA-Z0-9]*)[^>]*>/g, (match, tagName) => {
@@ -72,6 +82,7 @@ function stripEventHandlers(html: string): string {
 export function sanitizeHtml(dirty: string): string {
   if (!dirty) return "";
   let result = dirty;
+  result = stripDangerousElements(result);
   result = stripEventHandlers(result);
   result = stripDisallowedAttrs(result);
   result = stripDisallowedTags(result);
