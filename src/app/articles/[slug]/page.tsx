@@ -17,6 +17,7 @@ import { VerificationStamp } from "@/components/article/VerificationStamp";
 import { sanitizeHtml } from "@/lib/utils/sanitize-html";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { ShareButtons } from "@/components/article/ShareButtons";
+import { ShareSidebar } from "@/components/article/ShareSidebar";
 
 /** Strip the first H1 and H2 from HTML to avoid duplicate title/subtitle */
 function stripLeadingHeadings(html: string): string {
@@ -183,6 +184,8 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
         />
       )}
 
+      <ShareSidebar title={article.title} url={articleUrl} />
+
       <article className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
         {/* ── Header ── */}
         <header className="mb-10">
@@ -334,6 +337,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
           title={article.title}
           url={articleUrl}
           lead={article.lead || undefined}
+          className="lg:hidden"
         />
 
         {/* ── Camada "Esqueleto": Claims ── */}
