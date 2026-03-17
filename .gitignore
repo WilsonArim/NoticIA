@@ -39,3 +39,16 @@ next-env.d.ts
 
 # supabase
 supabase/.temp/
+
+# telegram collector secrets & sessions
+telegram-collector/.env
+telegram-collector/sessions/
+telegram-collector/__pycache__/
+*.session
+*.session-journal
+
+# claude settings (may contain local paths)
+.claude/settings.local.json
+
+# audit docs (local only)
+NoticIA-Auditoria-Tecnica*.docx
