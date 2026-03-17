@@ -49,8 +49,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
           // @ts-expect-error -- CSS custom property for focus ring
           "--tw-ring-color": "var(--accent)",
         }}
-        whileHover={disabled ? undefined : { scale: 1.02 }}
-        whileTap={disabled ? undefined : { scale: 0.98 }}
+        whileHover={disabled ? undefined : { scale: 1.02, y: -1 }}
+        whileTap={disabled ? undefined : { scale: 0.97, y: 1 }}
         transition={{ type: "spring", stiffness: 400, damping: 25 }}
         disabled={disabled}
         {...props}

@@ -6,7 +6,7 @@
 
 /* ── Font variables ── */
 @theme inline {
-  --font-sans: var(--font-inter);
+  --font-sans: var(--font-geist-sans);
   --font-serif: var(--font-playfair);
 }
 
@@ -258,6 +258,10 @@ body {
   }
   .glow-card:hover {
     transform: translateY(-2px);
+  }
+  .glow-card:active {
+    transform: scale(0.985);
+    transition: transform 0.1s ease;
   }
 }
 

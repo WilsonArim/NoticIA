@@ -15,6 +15,7 @@ import { humanizeTag } from "@/lib/utils/humanize-tag";
 import { LazyConfidenceRing } from "@/components/3d/LazyConfidenceRing";
 import { VerificationStamp } from "@/components/article/VerificationStamp";
 import { sanitizeHtml } from "@/lib/utils/sanitize-html";
+import { ScrollReveal } from "@/components/ui/ScrollReveal";
 
 /** Strip the first H1 and H2 from HTML to avoid duplicate title/subtitle */
 function stripLeadingHeadings(html: string): string {
@@ -53,6 +54,11 @@ export async function generateMetadata({
       title: article.title,
       description: article.lead || article.subtitle || undefined,
       type: "article",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: article.title,
+      description: article.lead || article.subtitle || undefined,
     },
   };
 }
@@ -322,7 +328,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
 
         {/* ── Camada "Esqueleto": Claims ── */}
         {articleClaims && articleClaims.length > 0 && (
-          <section className="mt-14">
+          <ScrollReveal><section className="mt-14">
             <h2
               className="mb-5 font-serif text-xl font-semibold"
               style={{ color: "var(--text-primary)" }}
@@ -413,12 +419,12 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
                 );
               })}
             </div>
-          </section>
+          </section></ScrollReveal>
         )}
 
         {/* ── Camada "Nervos": Sources ── */}
         {uniqueSources.length > 0 && (
-          <div className="mt-14">
+          <ScrollReveal delay={0.1}><div className="mt-14">
             <SourceConstellation
               sources={uniqueSources.map((s) => ({
                 source: s.source as unknown as Source,
@@ -426,14 +432,14 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
                 excerpt: s.excerpt,
               }))}
             />
-          </div>
+          </div></ScrollReveal>
         )}
 
         {/* ── Camada "Raciocinio": Rationale ── */}
         {rationaleChains && rationaleChains.length > 0 && (
-          <div className="mt-14">
+          <ScrollReveal delay={0.2}><div className="mt-14">
             <RationaleRiver steps={rationaleChains} />
-          </div>
+          </div></ScrollReveal>
         )}
       </article>
     </>

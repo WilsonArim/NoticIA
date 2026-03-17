@@ -9,6 +9,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Pesquisar",
   description: "Pesquise artigos verificados no NoticIA.",
+  robots: { index: false },
 };
 
 interface SearchPageProps {
@@ -103,12 +104,42 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
         ) : (
           <PageReveal delay={0.15}>
             <div
-              className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed py-16"
-              style={{ borderColor: "var(--border-primary)" }}
+              className="flex flex-col items-center justify-center gap-4 rounded-2xl py-20"
+              style={{ background: "var(--surface-secondary)" }}
             >
-              <p style={{ color: "var(--text-tertiary)" }}>
-                Introduza um termo de pesquisa para começar.
-              </p>
+              <div
+                className="flex h-20 w-20 items-center justify-center rounded-2xl"
+                style={{ background: "color-mix(in srgb, var(--accent) 12%, transparent)" }}
+              >
+                <svg
+                  width="32"
+                  height="32"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{ color: "var(--accent)" }}
+                >
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+              </div>
+              <div className="text-center">
+                <p
+                  className="font-serif text-lg font-semibold"
+                  style={{ color: "var(--text-primary)" }}
+                >
+                  Descubra factos verificados
+                </p>
+                <p
+                  className="mt-1 text-sm"
+                  style={{ color: "var(--text-tertiary)" }}
+                >
+                  Pesquise por tema, palavra-chave ou categoria.
+                </p>
+              </div>
             </div>
           </PageReveal>
         )}

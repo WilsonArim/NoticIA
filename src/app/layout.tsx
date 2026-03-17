@@ -1,15 +1,13 @@
 import type { Metadata } from "next";
-import { Inter, Playfair_Display } from "next/font/google";
+import { GeistSans } from "geist/font/sans";
+import { Playfair_Display } from "next/font/google";
 import "./globals.css";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
 import { MotionProvider } from "@/components/providers/MotionProvider";
 
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin", "latin-ext"],
-});
+const geist = GeistSans;
 
 const playfair = Playfair_Display({
   variable: "--font-playfair",
@@ -57,7 +55,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${inter.variable} ${playfair.variable} font-sans antialiased`}
+        className={`${geist.variable} ${playfair.variable} font-sans antialiased`}
       >
         <a
           href="#main-content"
@@ -67,7 +65,7 @@ export default function RootLayout({
         </a>
         <ThemeProvider>
           <MotionProvider>
-            <div className="flex min-h-screen flex-col">
+            <div className="flex min-h-[100dvh] flex-col">
               <Header />
               <main id="main-content" className="flex-1">{children}</main>
               <Footer />

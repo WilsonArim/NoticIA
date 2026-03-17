@@ -6,6 +6,26 @@ import type { ArticleCard as ArticleCardType } from "@/types/article";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Hero3D, HeroGlobe } from "@/components/3d/Hero3D";
+import { HeroSection } from "@/components/home/HeroSection";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "NoticIA — Jornalismo Independente e Factual",
+  description:
+    "Notícias verificadas, sem viés político. Fact-check automático, fontes atribuídas, transparência total. Em português de Portugal.",
+  openGraph: {
+    title: "NoticIA — Jornalismo Independente e Factual",
+    description:
+      "Notícias verificadas, sem viés político. Fact-check automático, fontes atribuídas, transparência total.",
+    type: "website",
+    locale: "pt_PT",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "NoticIA",
+    description: "Notícias verificadas, sem viés político.",
+  },
+};
 
 export const revalidate = 60;
 
@@ -37,21 +57,10 @@ export default async function HomePage() {
       <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
         {/* Editorial Header with Globe */}
         <section className="relative mb-6 grid grid-cols-1 items-center gap-4 lg:grid-cols-3">
-          <div className="lg:col-span-2">
-            <h1
-              className="font-serif text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl"
-              style={{ color: "var(--text-primary)" }}
-            >
-              NoticIA
-            </h1>
-            <p
-              className="mt-3 max-w-2xl text-lg leading-relaxed"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              Jornalismo feito por IA de forma independente. Cada artigo
-              mostra as fontes, o raciocínio e o nível de confiança.
-            </p>
-          </div>
+          <HeroSection
+            title="NoticIA"
+            subtitle="Jornalismo feito por IA de forma independente. Cada artigo mostra as fontes, o raciocínio e o nível de confiança."
+          />
           <div className="hidden lg:block">
             <HeroGlobe />
           </div>

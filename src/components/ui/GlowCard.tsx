@@ -5,6 +5,7 @@ import { getCertaintyHSL } from "@/lib/utils/certainty-color";
 
 interface GlowCardProps {
   certainty: number;
+  areaColor?: string;
   children: React.ReactNode;
   className?: string;
   as?: "div" | "article";
@@ -13,6 +14,7 @@ interface GlowCardProps {
 
 export function GlowCard({
   certainty,
+  areaColor,
   children,
   className = "",
   as = "div",
@@ -23,6 +25,11 @@ export function GlowCard({
   const glowColor = hsl.replace("hsl(", "hsla(").replace(")", `, 0.2)`);
   const borderColor = hsl.replace("hsl(", "hsla(").replace(")", `, ${0.15 + certainty * 0.2})`);
 
+  // Blend area color into shadow when provided
+  const shadowColor = areaColor
+    ? `color-mix(in srgb, ${areaColor} 25%, ${glowColor})`
+    : glowColor;
+
   const Component = motion.create(as);
 
   return (
@@ -30,10 +37,10 @@ export function GlowCard({
       className={`glow-card p-5 ${className}`}
       style={{
         borderColor,
-        boxShadow: `0 0 ${intensity}px ${spread}px ${glowColor}`,
+        boxShadow: `0 0 ${intensity}px ${spread}px ${shadowColor}`,
       }}
       whileHover={{
-        boxShadow: `0 0 ${intensity + 8}px ${spread + 4}px ${glowColor}`,
+        boxShadow: `0 0 ${intensity + 8}px ${spread + 4}px ${shadowColor}`,
         y: -3,
       }}
       transition={{ type: "spring", stiffness: 400, damping: 25 }}

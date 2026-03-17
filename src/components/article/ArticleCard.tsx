@@ -10,6 +10,7 @@ import { formatRelativeTime } from "@/lib/utils/format-date";
 import { getAreaColor } from "@/lib/utils/certainty-color";
 import { humanizeTag } from "@/lib/utils/humanize-tag";
 import { VerificationStamp } from "@/components/article/VerificationStamp";
+import { staggerItem } from "@/components/ui/StaggerGrid";
 
 function PriorityBadge({ priority, publishedAt }: { priority?: string | null; publishedAt?: string | null }) {
   if (!priority || priority === "p3") return null;
@@ -25,8 +26,8 @@ function PriorityBadge({ priority, publishedAt }: { priority?: string | null; pu
     <span
       className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${isP1 ? "animate-pulse" : ""}`}
       style={{
-        color: "#fff",
-        background: isP1 ? "#ef4444" : "#f59e0b",
+        color: "var(--surface-primary)",
+        background: isP1 ? "var(--area-politica)" : "var(--accent)",
       }}
     >
       {isP1 ? "Urgente" : "Importante"}
@@ -51,7 +52,7 @@ export function ArticleCard({ article, index = 0, variant = "default" }: Article
         transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
       >
         <Link href={`/articles/${article.slug}`} className="group block">
-          <GlowCard certainty={article.certainty_score} className="relative overflow-hidden p-8">
+          <GlowCard certainty={article.certainty_score} areaColor={areaColor} className="relative overflow-hidden p-8">
             {/* Verification stamp */}
             {article.verification_status && article.verification_status !== "none" && (
               <div className="absolute right-4 top-4 z-10">
@@ -127,7 +128,7 @@ export function ArticleCard({ article, index = 0, variant = "default" }: Article
         transition={{ duration: 0.4, delay: index * 0.08, ease: [0.22, 1, 0.36, 1] }}
       >
         <Link href={`/articles/${article.slug}`} className="group block">
-          <GlowCard certainty={article.certainty_score} className="relative p-4">
+          <GlowCard certainty={article.certainty_score} areaColor={areaColor} className="relative p-4">
             {/* Verification stamp */}
             {article.verification_status && article.verification_status !== "none" && (
               <div className="absolute right-3 top-3 z-10">
@@ -168,12 +169,14 @@ export function ArticleCard({ article, index = 0, variant = "default" }: Article
   // Default card
   return (
     <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay: index * 0.06, ease: [0.22, 1, 0.36, 1] }}
+      variants={staggerItem}
+      initial="hidden"
+      animate="show"
+      whileInView="show"
+      viewport={{ once: true }}
     >
       <Link href={`/articles/${article.slug}`} className="group block h-full">
-        <GlowCard certainty={article.certainty_score} className="relative flex h-full flex-col gap-3">
+        <GlowCard certainty={article.certainty_score} areaColor={areaColor} className="relative flex h-full flex-col gap-3">
           {/* Verification stamp */}
           {article.verification_status && article.verification_status !== "none" && (
             <div className="absolute right-3 top-3 z-10">
