@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import Image from "next/image";
 import Link from "next/link";
 import type { Chronicle, CronistaInfo } from "@/types/chronicle";
 import { AreaChip } from "@/components/ui/AreaChip";
@@ -85,11 +86,11 @@ export function CronistaPerfilAnimated({
           className="relative w-full flex-shrink-0 overflow-hidden sm:w-[320px] lg:w-[380px]"
           style={{ minHeight: "320px" }}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <Image
             src={cronista.avatar}
             alt={cronista.heteronimo}
-            className="h-full w-full object-cover"
+            fill
+            className="object-cover"
             style={{ objectPosition: "center 15%" }}
             onError={(e) => {
               const target = e.currentTarget;

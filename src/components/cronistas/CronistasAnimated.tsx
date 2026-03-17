@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import Image from "next/image";
 import Link from "next/link";
 import type { Chronicle, CronistaInfo } from "@/types/chronicle";
 
@@ -82,11 +83,12 @@ export function CronistasAnimated({
               {/* Cronista header */}
               <div className="mb-3 flex items-start gap-3">
                 <div className="cronista-avatar relative h-12 w-12 flex-shrink-0 overflow-hidden rounded-full" style={{ background: "var(--surface-secondary)" }}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
+                  <Image
                     src={cronista.avatar}
                     alt={cronista.heteronimo}
-                    className=""
+                    width={48}
+                    height={48}
+                    className="rounded-full"
                     onError={(e) => {
                       const target = e.currentTarget;
                       target.style.display = "none";

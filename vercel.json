@@ -5,5 +5,31 @@
   "installCommand": "npm install",
   "env": {
     "NEXT_PUBLIC_SITE_URL": "https://curador-de-noticias.vercel.app"
-  }
+  },
+  "headers": [
+    {
+      "source": "/articles/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "s-maxage=60, stale-while-revalidate=86400" }
+      ]
+    },
+    {
+      "source": "/cronistas/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "s-maxage=3600, stale-while-revalidate=86400" }
+      ]
+    },
+    {
+      "source": "/(.*)\\.(?:jpg|jpeg|png|gif|ico|svg|webp)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
+      "source": "/(.*)\\.(?:js|css)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    }
+  ]
 }

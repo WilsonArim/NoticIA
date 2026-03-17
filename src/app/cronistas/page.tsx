@@ -10,6 +10,19 @@ export const metadata: Metadata = {
   title: "Cronistas — Opinião & Análise",
   description:
     "10 cronistas com personalidade editorial própria analisam a semana. Perspetivas diversas sobre geopolítica, economia, tecnologia e Portugal.",
+  openGraph: {
+    title: "Cronistas — Opinião & Análise",
+    description:
+      "10 cronistas com personalidade editorial própria analisam a semana.",
+    type: "website",
+    locale: "pt_PT",
+  },
+  twitter: {
+    card: "summary",
+    title: "Cronistas — Opinião & Análise",
+    description:
+      "10 cronistas com personalidade editorial própria analisam a semana.",
+  },
 };
 
 export const revalidate = 120;

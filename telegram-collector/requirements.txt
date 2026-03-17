@@ -1,0 +1,3 @@
+telethon>=1.34
+supabase>=2.0
+python-dotenv>=1.0

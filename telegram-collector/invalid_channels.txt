@@ -1,0 +1,40 @@
+# Invalid Telegram channels — auto-detected
+# 36 channels | Last updated: 2026-03-17 17:45 UTC
+# Format: handle<TAB>reason
+
+AlarabiyaEng	UsernameInvalidError
+Cen4infoRes	No user has "cen4infores" as username
+ChannelNewsAsia	No user has "channelnewsasia" as username
+DFRLab	UsernameInvalidError
+EUCouncil	UsernameInvalidError
+ForeignAffairsMag	No user has "foreignaffairsmag" as username
+ICCCourt	No user has "icccourt" as username
+JovemPanNews	UsernameInvalidError
+NATO	No user has "nato" as username
+NatureNews	UsernameInvalidError
+NewEnglandJournal	No user has "newenglandjournal" as username
+RSF_inter	No user has "rsf_inter" as username
+SAPONoticias	No user has "saponoticias" as username
+SkyNewsBreak	UsernameInvalidError
+StraightsTimes	No user has "straightstimes" as username
+UNNews	UsernameInvalidError
+WHO	UsernameInvalidError
+WSJmarkets	UsernameInvalidError
+africanews_en	No user has "africanews_en" as username
+anadoluagency	UsernameInvalidError
+ap	Cannot find any entity corresponding to "ap"
+bbcnews	No user has "bbcnews" as username
+bloombergfeeds	No user has "bloombergfeeds" as username
+cfr_org	No user has "cfr_org" as username
+dwnews	No user has "dwnews" as username
+financialtimes	UsernameInvalidError
+g1portal	UsernameInvalidError
+hrw	UsernameInvalidError
+jornaldenoticias	No user has "jornaldenoticias" as username
+kremlin_ru	UsernameInvalidError
+observadorpt	No user has "observadorpt" as username
+politico_eu	No user has "politico_eu" as username
+reuters	UsernameInvalidError
+rtp_noticias	No user has "rtp_noticias" as username
+theblock_	Cannot find any entity corresponding to "theblock_"
+tsfradio	No user has "tsfradio" as username

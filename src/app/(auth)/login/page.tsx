@@ -3,18 +3,11 @@
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { getSafeRedirect } from "@/lib/utils/safe-redirect";
 
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  function getSafeRedirect(param: string | null): string {
-    if (!param) return "/dashboard";
-    // Must start with / and NOT with // (protocol-relative URL)
-    if (param.startsWith("/") && !param.startsWith("//")) {
-      return param;
-    }
-    return "/dashboard";
-  }
   const redirectTo = getSafeRedirect(searchParams.get("redirect"));
 
   const [email, setEmail] = useState("");

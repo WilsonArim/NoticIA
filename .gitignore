@@ -52,3 +52,4 @@ telegram-collector/__pycache__/
 
 # audit docs (local only)
 NoticIA-Auditoria-Tecnica*.docx
+.claude/settings.local.json

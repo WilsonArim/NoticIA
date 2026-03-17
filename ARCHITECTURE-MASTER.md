@@ -309,7 +309,7 @@ Funcao dupla: monitorizacao do sistema + correcao autonoma de erros
 
 ```
 FLUXO DE DADOS:
-raw_events (1934 rows, 0 pending) → bridge-events (auto cada 20min) → intake_queue (1055 rows, 1027 pending) → articles (13 rows)
+raw_events (1934+ rows, 0 pending) → bridge-events (auto cada 20min) → intake_queue (1055+ rows, ~4 pending) → pipeline-triagem → pipeline-verificacao → pipeline-escritor → articles (61+ published)
                                                                               │
                                                                               ├── claims (15)
                                                                               ├── article_claims (15)
@@ -479,7 +479,8 @@ pipeline_job(priority):
 | **collector-orchestrator** | Cada 20 min | Bridge raw_events → intake_queue + health check dos coletores + reset items stuck | ACTIVO |
 | **collect-x-cowork** | Cada 30 min | Pesquisa X/Twitter via WebSearch (site:x.com). 3 areas por ciclo, rotacao completa ~3h30. Custo: $0 | ACTIVO |
 | **source-finder-cowork** | Diaria (07:00) | Descobre novos RSS feeds, canais Telegram, contas X via WebSearch → discovered_sources. Custo: $0 | ACTIVO |
-| **pipeline-triagem** | Cada 30 min | TRIAGEM da intake_queue: fact-check (WebSearch) + bias detection + filtro relevancia PT + auditor. Marca items `approved` ou `auditor_failed`. Max 5 items/ciclo. Custo: $0 | ACTIVO (novo) |
+| **pipeline-triagem** | Cada 15 min | TRIAGEM RAPIDA: validacao de frescura (data real do evento vs data de colecta), reclassificacao semantica de area, fact-check basico, bias detection, filtro PT. Max 25 items/ciclo. Custo: $0 | ACTIVO (v2 — 16/03/2026) |
+| **pipeline-verificacao** | Cada 30 min | VERIFICACAO PROFUNDA: double-check frescura + area, credibilidade fonte (tier 1-6), cross-ref claims, bias 6D, certainty score. Max 5 items/ciclo. Custo: $0 | ACTIVO (v2 — 16/03/2026) |
 | **pipeline-escritor** | Cada 30 min | ESCRITA: pega items `approved`, escreve artigo PT-PT + revisao Editor-Chefe + publica. Max 2 artigos/ciclo. Custo: $0 | ACTIVO (novo) |
 | **publisher-p2** | Cada 3 horas | Publica artigos P2 (noticias importantes) | ACTIVO |
 | **publisher-p3** | 2x/dia (8h e 20h) | Publica artigos P3 (analise e contexto) | ACTIVO |
@@ -501,9 +502,15 @@ raw_events (processed=false)
     ▼ [collector-orchestrator, cada 20min]
 intake_queue (status='pending')
     │
-    ▼ [pipeline-triagem, cada 30min — fact-check + bias + filtro PT + auditor]
-    ├─ APROVADO → status='approved'
-    └─ REJEITADO → status='auditor_failed'
+    ▼ [pipeline-triagem, cada 15min — frescura + area semantica + fact-check + bias + filtro PT]
+    ├─ APROVADO → status='auditor_approved'
+    ├─ REJEITADO → status='auditor_failed' (low_confidence, high_bias, nao_relevante_pt, duplicado, stale_content)
+    └─ EXPIRADO → status='triagem_rejected' (auto_expired_72h)
+    │
+    ▼ [pipeline-verificacao, cada 30min — double-check frescura + area + fact-check profundo + bias 6D]
+    ├─ APROVADO → status='approved' (certainty >= 0.7)
+    ├─ REVIEW → status='review' (certainty 0.5-0.7)
+    └─ REJEITADO → status='auditor_failed' (certainty < 0.5)
                 │
                 ▼ [pipeline-escritor, cada 30min — escritor PT-PT + editor-chefe]
             status='writing' → status='processed' + artigo em articles (status='published')
@@ -511,34 +518,39 @@ intake_queue (status='pending')
 
 ---
 
-## 7. DIAGNOSTICO — O QUE ESTA PARTIDO
+## 7. DIAGNOSTICO — ESTADO ATUAL (16 Mar 2026)
 
-### Problema Principal: O BURACO
+### ~~Problema Principal: O BURACO~~ ✅ RESOLVIDO
 
+O pipeline esta funcional e a produzir artigos continuamente. Fluxo completo:
 ```
-raw_events (1934+ rows)
-     │
-     ▼
-  ???  ← NINGUEM converte raw_events → intake_queue
-     │
-     ▼
-intake_queue (1027 pending)
+raw_events → bridge-events (cada 20min) → intake_queue → pipeline-triagem (cada 15min) → pipeline-verificacao (cada 30min) → pipeline-escritor (cada 30min) → articles → publishers
 ```
 
-**Causa raiz:** O pipeline Python (runner.py) faz coleta → scoring → curadoria → editor → fact-check → publish tudo in-memory. Mas as scheduled tasks do Cowork chamam Edge Functions que escrevem na DB. Ha DOIS sistemas desconectados:
+### Correcoes Aplicadas (16 Mar 2026)
 
-1. **Pipeline Python local** — faz tudo in-memory, funciona como monolito
-2. **Edge Functions + Scheduled Tasks** — escrevem na DB mas ninguem le
+1. **Noticias stale publicadas como novas** ✅ CORRIGIDO
+   - Causa: `published_at` continha data de colecta, nao data do evento
+   - Fix: pipeline-triagem agora valida frescura com WebSearch (data real do evento)
+   - Fix: pipeline-verificacao faz double-check de frescura antes de aprovar
+   - 4 artigos stale arquivados (presidenciais Jan/Fev + Champions League 11 Mar)
 
-O buraco existe porque o Collector Orchestrator (Cowork task) chama `collect-rss` que escreve em `raw_events`, mas o Pipeline Orchestrator le `intake_queue` (nao `raw_events`).
+2. **Categorias erradas (keyword scoring mecanico)** ✅ CORRIGIDO
+   - Causa: bridge-events usa keyword matching sem compreensao semantica
+   - Fix: pipeline-triagem reclassifica area semanticamente (override do bridge-events)
+   - Fix: pipeline-verificacao faz double-check de area antes de aprovar
+   - 2 artigos reclassificados (ciberataques europeus: portugal → defesa)
+   - 3 artigos reclassificados antes de arquivar (presidenciais: tecnologia → portugal)
 
-### Problemas Secundarios
+3. **pg_cron jobs Grok activos gastando dinheiro** ✅ CORRIGIDO (mais cedo hoje)
+   - Jobs #3 (grok-fact-check) e #4 (writer-publisher) eliminados
+   - API keys XAI_API_KEY e X_BEARER_TOKEN removidas dos Supabase secrets
 
-1. **6/7 coletores precisam de API keys** — RSS funciona, resto inativo
-2. **Reporters fazem apenas keyword scoring** — falta fact-check + forense com Grok
-3. **14 reporters definidos, precisam de 18** — faltam 4-6 areas novas
-4. **RSS tem 133 feeds** — expansao concluida (era 22, agora 133)
-5. **0 artigos novos em 8h** — pipeline completamente parada
+### Problemas Restantes
+
+1. **bridge-events continua a classificar mal** — e compensado pela triagem semantica, mas idealmente devia ser melhorado
+2. **collect-x-cowork nao extrai data real dos tweets** — compensado pela validacao de frescura na triagem
+3. **Event Registry + ACLED + Telegram inactivos** — faltam API keys (ver ROADMAP.md)
 
 ---
 
@@ -671,8 +683,8 @@ collector-orchestrator (cada 15 min):
 - [x] Frontend cronistas: /cronistas listing, /cronista/[id] profile, /cronistas/[id] chronicle
 - [x] Error boundary + loading skeleton for cronistas
 - [x] Navigation link "Cronistas" in Header
-- [ ] Scheduled task cronista-semanal (Cowork, Domingo 20:00)
-- [ ] Processar backlog intake_queue (1027 pending items)
+- [x] Scheduled task cronista-semanal (Cowork, Domingo 20:00)
+- [x] Processar backlog intake_queue (resolvido — apenas ~4 pending, pipeline funcional)
 
 ---
 
@@ -693,9 +705,9 @@ collector-orchestrator (cada 15 min):
 
 | Uso | Modelo | Onde corre | Custo extra |
 |-----|--------|-----------|-------------|
-| Fact-check (verificacao + web search) | Claude (Cowork) | pipeline-triagem | $0 (incluido na subscricao) |
-| Bias-check (6 dimensoes) | Claude (Cowork) | pipeline-triagem | $0 |
-| Auditor "O Cetico" | Claude (Cowork) | pipeline-triagem | $0 |
+| Triagem rapida (frescura + area + fact-check basico + bias + filtro PT) | Claude (Cowork) | pipeline-triagem | $0 (incluido na subscricao) |
+| Verificacao profunda (frescura + area + credibilidade + claims + bias 6D) | Claude (Cowork) | pipeline-verificacao | $0 |
+| Auditor "O Cetico" (certainty score final) | Claude (Cowork) | pipeline-verificacao | $0 |
 | Writer PT-PT | Claude (Cowork) | pipeline-escritor | $0 |
 | Editor-Chefe (revisao ortografica + PT-PT) | Claude (Cowork) | pipeline-escritor | $0 |
 | Cronistas | Claude (Cowork) | Scheduled task cronista (semanal) | $0 |

@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import { CRONISTAS } from "@/types/chronicle";
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { AreaChip } from "@/components/ui/AreaChip";
 import { sanitizeHtml } from "@/lib/utils/sanitize-html";
@@ -89,11 +90,12 @@ export default async function ChroniclePage({ params }: ChroniclePageProps) {
             <span className="absolute inset-0 flex items-center justify-center text-xl">
               {cronista.emoji}
             </span>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            <Image
               src={cronista.avatar}
               alt={cronista.heteronimo}
-              className="relative z-10"
+              width={40}
+              height={40}
+              className="relative z-10 rounded-full"
             />
           </div>
         )}
