@@ -10,13 +10,13 @@
     {
       "source": "/articles/(.*)",
       "headers": [
-        { "key": "Cache-Control", "value": "s-maxage=60, stale-while-revalidate=86400" }
+        { "key": "Cache-Control", "value": "s-maxage=60, stale-while-revalidate=300" }
       ]
     },
     {
       "source": "/cronistas/(.*)",
       "headers": [
-        { "key": "Cache-Control", "value": "s-maxage=3600, stale-while-revalidate=86400" }
+        { "key": "Cache-Control", "value": "s-maxage=3600, stale-while-revalidate=300" }
       ]
     },
     {
