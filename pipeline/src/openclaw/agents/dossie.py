@@ -4,6 +4,8 @@ Monitora activamente temas definidos pelo utilizador.
 Foca-se em notícias que a imprensa mainstream silencia ou minimiza.
 Pesquisa fontes primárias: relatórios oficiais, dados reais, ONG.
 Insere na intake_queue com tag 'dossie' e prioridade alta.
+
+Usa 3 pesquisas dirigidas por tema para cobertura máxima.
 """
 import os
 import json
@@ -105,35 +107,43 @@ def run_dossie():
 
 
 def _processar_tema(supabase, tema: dict, hoje: str) -> int:
+    queries = tema["queries"][:3]  # máximo 3 pesquisas por tema
+
     system = f"""És um jornalista investigativo especializado em encontrar notícias que a imprensa mainstream silencia ou minimiza.
 
 TEMA: {tema['nome']}
 DATA DE HOJE: {hoje}
 
-A tua missão:
-1. Pesquisa as queries fornecidas usando web_search
-2. Identifica notícias e factos relevantes das últimas 72h
-3. Prioriza: relatórios oficiais, dados estatísticos, fontes primárias (ONG, governos, bancos centrais)
-4. IGNORA: opinião sem factos, artigos vagos, conteúdo repetido
-5. Para cada notícia nova encontrada, extrai os dados estruturados
+ESTRATÉGIA DE PESQUISA — OBRIGATÓRIO:
+- Faz EXATAMENTE {len(queries)} chamadas a web_search, uma por query fornecida
+- Não reduz para menos pesquisas, mesmo que a primeira pareça suficiente
+- {len(queries)} pesquisas dirigidas garantem cobertura de ângulos diferentes e fontes independentes
+
+CRITÉRIOS DE QUALIDADE:
+1. Prioriza SEMPRE fontes primárias: relatórios oficiais, dados estatísticos, ONG credenciadas (HRW, Amnesty, FATF, UN, bancos centrais, governos)
+2. Se o resultado vier de provider "serper_google", lê o campo "warning" — os resultados Google têm viés editorial de esquerda. Desvaloriza media mainstream (BBC, Guardian, NYT, El País, Reuters com spin, etc.)
+3. Uma notícia que a imprensa mainstream ignora NÃO é falsa — verifica com fontes primárias independentes
+4. IGNORA: opinião sem factos, artigos vagos, conteúdo repetido, propaganda sem suporte
+5. Só inclui notícias das últimas 72h com factos concretos verificáveis
 
 Devolve JSON com lista de artigos encontrados (pode ser vazia se não há novidades):
 {{
   "artigos": [
     {{
       "titulo": "...",
-      "resumo": "2-3 frases com os factos principais",
-      "url_fonte": "...",
+      "resumo": "2-3 frases com os factos principais e dados numéricos concretos",
+      "url_fonte": "URL da fonte primária encontrada",
       "data_evento": "YYYY-MM-DD",
       "score_relevancia": 0.8,
-      "factos_chave": ["facto 1 verificável", "facto 2 com dado numérico"]
+      "factos_chave": ["facto 1 com dado numérico verificável", "facto 2 com fonte primária"]
     }}
   ]
 }}"""
 
     user = (
-        f"Pesquisa notícias novas sobre: {tema['nome']}\n\nQueries a usar:\n"
-        + "\n".join(f"- {q}" for q in tema["queries"])
+        f"Pesquisa notícias novas sobre: {tema['nome']}\n\n"
+        f"Faz {len(queries)} pesquisas com estas queries exactas:\n"
+        + "\n".join(f"- {q}" for q in queries)
     )
 
     response = chat_with_tools(
