@@ -18,7 +18,7 @@ const sizeClasses = {
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   function Button({ variant = "primary", size = "md", className = "", children, disabled, style, ...props }, ref) {
     const baseStyle: React.CSSProperties = { ...style };
-    let classes = `inline-flex items-center justify-center font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50 ${sizeClasses[size]} ${className}`;
+    const classes = `inline-flex items-center justify-center font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50 ${sizeClasses[size]} ${className}`;
 
     switch (variant) {
       case "primary":

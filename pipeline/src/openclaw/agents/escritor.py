@@ -7,6 +7,8 @@ import os
 import json
 import logging
 import re
+import hashlib
+from urllib.parse import urlparse
 
 from supabase import create_client
 
@@ -105,7 +107,7 @@ def _publicar_artigo(supabase, item: dict, artigo: dict):
     fact_summary = item.get("fact_check_summary") or {}
     certainty = fact_summary.get("certainty_score", 0.8)
 
-    supabase.table("articles").insert({
+    result = supabase.table("articles").insert({
         "title": artigo.get("titulo", item.get("title", "")),
         "subtitle": artigo.get("subtitulo", ""),
         "slug": slug,
@@ -120,13 +122,133 @@ def _publicar_artigo(supabase, item: dict, artigo: dict):
         "tags": artigo.get("tags", []),
         "language": "pt",
         "verification_status": "none",
-    }).execute()
+    }).select("id").single().execute()
+
+    article_id = result.data.get("id") if result.data else None
+
+    # Inserir fontes, claim e ligações para que apareçam no frontend
+    if article_id:
+        _inserir_fontes_do_artigo(supabase, article_id, item, artigo)
 
     supabase.table("intake_queue").update({
         "status": "processed",
     }).eq("id", item["id"]).execute()
 
     logger.info("Escritor: artigo publicado '%s'", artigo.get("titulo", "")[:50])
+
+
+def _inserir_fontes_do_artigo(supabase, article_id: str, item: dict, artigo: dict):
+    """Insere sources + claim principal + article_claims + claim_sources.
+
+    Usa as fontes descobertas pelo fact-checker (fact_check_summary.fontes_encontradas)
+    mais a URL original da notícia. Sem estas inserções as fontes não aparecem no frontend.
+    """
+    fact_summary = item.get("fact_check_summary") or {}
+    fontes_fc = fact_summary.get("fontes_encontradas", [])
+
+    # Juntar URL original + fontes do fact-checker (dedup, máx 6)
+    url_original = item.get("url", "")
+    todas_fontes: list[str] = []
+    vistas: set[str] = set()
+    for url in ([url_original] + list(fontes_fc)):
+        if url and url.startswith("http") and url not in vistas:
+            todas_fontes.append(url)
+            vistas.add(url)
+        if len(todas_fontes) >= 6:
+            break
+
+    if not todas_fontes:
+        logger.debug("Escritor: sem fontes para artigo %s", article_id)
+        return
+
+    # 1. Inserir / reutilizar sources
+    source_ids: list[str] = []
+    for url in todas_fontes:
+        try:
+            domain = urlparse(url).netloc or url[:50]
+            content_hash = hashlib.md5(url.encode()).hexdigest()
+
+            existing = (
+                supabase.table("sources")
+                .select("id")
+                .eq("content_hash", content_hash)
+                .maybeSingle()
+                .execute()
+            )
+            if existing.data:
+                source_ids.append(existing.data["id"])
+                continue
+
+            ins = (
+                supabase.table("sources")
+                .insert({
+                    "url": url,
+                    "domain": domain,
+                    "title": domain,
+                    "content_hash": content_hash,
+                    "source_type": "web",
+                    "reliability_score": 0.75,
+                    "metadata": {"via": "fact_checker"},
+                })
+                .select("id")
+                .single()
+                .execute()
+            )
+            if ins.data:
+                source_ids.append(ins.data["id"])
+        except Exception as e:
+            logger.warning("Escritor: erro ao inserir source %s: %s", url[:60], e)
+
+    if not source_ids:
+        return
+
+    # 2. Criar claim principal com o lead do artigo (ou as notas do fact-checker)
+    notas = fact_summary.get("notas", "")
+    claim_text = (artigo.get("lead") or notas or item.get("title", "Factos verificados"))[:500]
+    claim_id: str | None = None
+    try:
+        c = (
+            supabase.table("claims")
+            .insert({
+                "original_text": claim_text,
+                "subject": item.get("title", "")[:100],
+                "predicate": "verificado por",
+                "object": "múltiplas fontes",
+                "verification_status": "verified",
+                "confidence_score": min(1.0, float(fact_summary.get("certainty_score", 0.8))),
+            })
+            .select("id")
+            .single()
+            .execute()
+        )
+        claim_id = c.data.get("id") if c.data else None
+    except Exception as e:
+        logger.warning("Escritor: erro ao inserir claim: %s", e)
+
+    if not claim_id:
+        return
+
+    # 3. Ligar claim ao artigo
+    try:
+        supabase.table("article_claims").insert({
+            "article_id": article_id,
+            "claim_id": claim_id,
+            "position": 0,
+        }).execute()
+    except Exception as e:
+        logger.warning("Escritor: erro ao inserir article_claims: %s", e)
+
+    # 4. Ligar cada source ao claim
+    for source_id in source_ids:
+        try:
+            supabase.table("claim_sources").insert({
+                "claim_id": claim_id,
+                "source_id": source_id,
+                "supports": True,
+                "excerpt": None,
+            }).execute()
+        except Exception as e:
+            logger.warning("Escritor: erro ao inserir claim_sources (source=%s): %s", source_id, e)
 
 
 def _slugify(text: str) -> str:
