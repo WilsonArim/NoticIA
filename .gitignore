@@ -50,6 +50,11 @@ telegram-collector/__pycache__/
 # claude settings (may contain local paths)
 .claude/settings.local.json
 
+# pipeline secrets & cache
+pipeline/.env
+pipeline/**/__pycache__/
+pipeline/**/*.pyc
+
 # audit docs (local only)
 NoticIA-Auditoria-Tecnica*.docx
 .claude/settings.local.json

@@ -1,0 +1,9 @@
+# Dependências mínimas para o scheduler Ollama (sem ML local)
+# Usado no Fly.io — imagem muito mais leve que o requirements.txt completo
+
+httpx>=0.27
+apscheduler>=3.10
+supabase>=2.0
+python-dotenv>=1.0
+openai>=1.0.0
+feedparser>=6.0

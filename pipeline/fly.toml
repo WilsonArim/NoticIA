@@ -1,0 +1,21 @@
+# Fly.io — NoticIA Scheduler
+# Deploy: cd pipeline && fly deploy
+# Documentação: https://fly.io/docs/
+
+app = "noticia-scheduler"
+primary_region = "cdg"  # Paris — região europeia disponível
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  # Variáveis não sensíveis — as sensíveis vão via `fly secrets set`
+  PYTHONUNBUFFERED = "1"
+  PYTHONDONTWRITEBYTECODE = "1"
+  LOG_LEVEL = "INFO"
+
+# Máquina mínima — o scheduler é leve (só chamadas HTTP a APIs externas)
+[[vm]]
+  memory = "256mb"
+  cpu_kind = "shared"
+  cpus = 1
