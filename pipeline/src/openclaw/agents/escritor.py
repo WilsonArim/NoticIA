@@ -1,6 +1,7 @@
 """
-Agente Escritor — Qwen 3.5 122B (tool calling, PT-PT nativo)
+Agente Escritor — Nemotron 3 Super (PT-PT nativo)
 Escreve artigos jornalísticos em PT-PT a partir de items 'approved'.
+Publica directamente com status='published' (sem etapa intermédia 'processed').
 """
 import os
 import json
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
-MODEL = os.getenv("MODEL_ESCRITOR", "qwen3.5:122b")
+MODEL = os.getenv("MODEL_ESCRITOR", "nemotron-3-super:cloud")
 BATCH_SIZE = int(os.getenv("ESCRITOR_BATCH_SIZE", "5"))
 
 
@@ -43,7 +44,16 @@ def run_escritor():
             artigo = _escrever_artigo(item)
             _publicar_artigo(supabase, item, artigo)
         except Exception as e:
-            logger.error("Escritor erro item %s: %s", item["id"], e)
+            err_str = str(e)
+            if "QUALITY_GATE" in err_str:
+                # Certainty abaixo do threshold — marcar como fact_check para não reprocessar
+                supabase.table("intake_queue").update({
+                    "status": "fact_check",
+                    "error_message": err_str[:400],
+                }).eq("id", item["id"]).execute()
+                logger.warning("Escritor quality gate rejeitou '%s': %s", item.get("title", "")[:50], err_str[:100])
+            else:
+                logger.error("Escritor erro item %s: %s", item["id"], e)
 
 
 def _escrever_artigo(item: dict) -> dict:
@@ -106,16 +116,17 @@ def _publicar_artigo(supabase, item: dict, artigo: dict):
         "priority": item.get("priority", "p2"),
         "certainty_score": certainty,
         "bias_score": item.get("bias_score", 0.20),
-        "status": "processed",
+        "status": "published",  # publica directamente — sem etapa 'processed' (constraint)
         "tags": artigo.get("tags", []),
         "language": "pt",
+        "verification_status": "none",
     }).execute()
 
     supabase.table("intake_queue").update({
         "status": "processed",
     }).eq("id", item["id"]).execute()
 
-    logger.info("Escritor: artigo criado '%s'", artigo.get("titulo", "")[:50])
+    logger.info("Escritor: artigo publicado '%s'", artigo.get("titulo", "")[:50])
 
 
 def _slugify(text: str) -> str:
