@@ -198,6 +198,7 @@ def _inserir_se_novo(supabase, artigo: dict, tema: dict) -> bool:
         "score": artigo.get("score_relevancia", 0.75),
         "status": "pending",
         "priority": tema["prioridade"],
+        "language": "pt",
         "metadata": {
             "source_agent": "dossie",
             "dossie_id": tema["id"],
