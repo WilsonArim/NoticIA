@@ -19,6 +19,7 @@ dependencies = [
     "crawl4ai>=0.3",
     "telethon>=1.34",
     "python-whois>=0.9",
+    "openai>=1.0.0",
 ]
 
 [project.optional-dependencies]

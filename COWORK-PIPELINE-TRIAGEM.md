@@ -1,3 +1,7 @@
+# ⚠️ MIGRADO PARA OLLAMA — DESACTIVAR NO COWORK
+# Agora corre via: pipeline/src/openclaw/agents/triagem.py (DeepSeek V3.2)
+# Scheduler: pipeline/src/openclaw/scheduler_ollama.py (cada 20 min)
+
 # Scheduled Task: pipeline-triagem
 
 **Nome:** Pipeline triagem

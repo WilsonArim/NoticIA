@@ -1,3 +1,7 @@
+# ⚠️ MIGRADO PARA OLLAMA — DESACTIVAR NO COWORK
+# Substituído por: triagem.py + fact_checker.py + escritor.py (Ollama Cloud)
+# Scheduler: pipeline/src/openclaw/scheduler_ollama.py
+
 # Scheduled Task: article-processor
 
 **Nome:** article-processor

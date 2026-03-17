@@ -1,3 +1,7 @@
+# ⚠️ MIGRADO PARA OLLAMA — DESACTIVAR NO COWORK
+# Agora corre via: pipeline/src/openclaw/agents/escritor.py (Qwen 3.5 122B)
+# Scheduler: pipeline/src/openclaw/scheduler_ollama.py (cada 30 min)
+
 # Scheduled Task: pipeline-escritor
 
 **Nome:** Pipeline escritor
