@@ -58,7 +58,7 @@ Devolve APENAS JSON válido, sem markdown:
 
   const ollama = getClient();
   const stream = await ollama.chat.completions.create({
-    model: process.env.MODEL_ESCRITOR || "qwen3.5:122b",
+    model: process.env.MODEL_ESCRITOR || "nemotron-3-super:cloud",
     messages: [{ role: "user", content: prompt }],
     stream: true,
     temperature: 0.4,
