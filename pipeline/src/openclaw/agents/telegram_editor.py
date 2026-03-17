@@ -6,7 +6,7 @@ Fluxo:
   2. Agente pesquisa factos com Nemotron + web_search (3 pesquisas)
   3. Apresenta os factos encontrados e pede confirmação
   4. Tu approvas / pedes alterações / defines o ângulo
-  5. Agente redige com Qwen 3.5 122B
+  5. Agente redige com Nemotron 3 Super
   6. Tu approvas o rascunho (ou pedes revisão)
   7. Agente publica DIRECTAMENTE em articles (bypass da fila)
   8. Site actualiza em <30s via Vercel ISR
@@ -14,7 +14,7 @@ Fluxo:
 Multi-LLM:
   - DeepSeek V3.2      → respostas rápidas e conversação
   - Nemotron 3 Super   → pesquisa de factos (tool calling)
-  - Qwen 3.5 122B      → redacção do artigo final
+  - Nemotron 3 Super      → redacção do artigo final
 
 Segurança: só aceita mensagens do TELEGRAM_ALLOWED_USER_ID
 """
@@ -59,7 +59,7 @@ VERCEL_REVALIDATE_TOKEN = os.getenv("VERCEL_REVALIDATE_TOKEN", "")
 
 MODEL_CHAT = os.getenv("MODEL_TRIAGEM", "deepseek-v3.2:cloud")       # rápido
 MODEL_RESEARCH = os.getenv("MODEL_FACTCHECKER", "nemotron-3-super:cloud")  # tool calling
-MODEL_WRITER = os.getenv("MODEL_ESCRITOR", "qwen3.5:122b")            # escrita
+MODEL_WRITER = os.getenv("MODEL_ESCRITOR", "nemotron-3-super:cloud")  # escrita
 
 AREAS_VALIDAS = [
     "portugal", "europa", "mundo", "economia", "tecnologia",
@@ -165,7 +165,7 @@ async def cmd_ajuda(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "1. Descreves o tema\n"
         "2. Eu pesquiso os factos (Nemotron + web)\n"
         "3. Tu approvas o ângulo\n"
-        "4. Eu redijo (Qwen 3.5 122B)\n"
+        "4. Eu redijo (Nemotron 3 Super)\n"
         "5. Tu approvas o artigo\n"
         "6. Publicado directamente no site ✅",
         parse_mode=ParseMode.MARKDOWN,
@@ -265,7 +265,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             s["angle"] = text  # instrução adicional (ex: "enfatiza o paradoxo")
 
         s["state"] = STATE_DRAFTING
-        msg = await update.message.reply_text("✍️ A redigir artigo... (Qwen 3.5 122B)")
+        msg = await update.message.reply_text("✍️ A redigir artigo... (Nemotron 3 Super)")
 
         draft = await _redigir_artigo(s)
         s["draft"] = draft
@@ -308,7 +308,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             # Instrução de revisão
             s["angle"] = f"{s['angle']} | revisão: {text}"
             s["state"] = STATE_DRAFTING
-            msg = await update.message.reply_text("🔄 A rever... (Qwen 3.5 122B)")
+            msg = await update.message.reply_text("🔄 A rever... (Nemotron 3 Super)")
             draft = await _redigir_artigo(s)
             s["draft"] = draft
             s["state"] = STATE_REVIEWING
@@ -412,7 +412,7 @@ Devolve um resumo estruturado dos factos encontrados, com fontes."""
 
 
 async def _redigir_artigo(s: dict) -> dict:
-    """Qwen 3.5 122B — redacção do artigo final."""
+    """Nemotron 3 Super — redacção do artigo final."""
     instrucoes_angulo = f"\nÂNGULO EDITORIAL ESPECÍFICO: {s['angle']}" if s["angle"] else ""
     hoje = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 

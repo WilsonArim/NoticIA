@@ -88,7 +88,7 @@ export function Footer() {
             color: "var(--text-tertiary)",
           }}
         >
-          Verificação multi-agente: Coletores (IA) &middot; Repórteres (Keyword + IA) &middot; Fact-checkers (DeepSeek + Qwen) &middot; Editorial (Nemotron)
+          Verificação multi-agente: Coletores (IA) &middot; Repórteres (Keyword + IA) &middot; Fact-checkers (DeepSeek) &middot; Escritor + Editorial (Nemotron)
         </div>
       </div>
     </footer>

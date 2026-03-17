@@ -39,15 +39,13 @@ FACT-CHECKER (Ollama Local: Nemotron 3 Super, cada 30min)
     → aprovado: status = 'approved'
     → rejeitado: status = 'fact_check'
     ↓
-ESCRITOR (Ollama Local: Qwen 3.5 122B, cada 30min)
+ESCRITOR (Fly.io: nemotron-3-super:cloud, cada 30min)
     → escreve artigo PT-PT
-    → insere em articles com status = 'processed'
+    → insere em articles com status = 'published' DIRECTAMENTE
     → marca intake_queue como status = 'processed'
     ↓
-PUBLISHER (Cowork: publisher-p2 cada 3h, publisher-p3 2x/dia)
-    → move articles de 'processed' para 'published'
-    ↓
 SITE ONLINE (Vercel: noticia-ia.vercel.app)
+    ← ISR revalida em 60s após novo artigo
 ```
 
 ---
@@ -83,7 +81,7 @@ cd pipeline && source .venv/bin/activate && python -m openclaw.scheduler_ollama
 | Triagem | DeepSeek V3.2 | cada 20min | `agents/triagem.py` |
 | Fact-checker | Nemotron 3 Super | cada 30min | `agents/fact_checker.py` |
 | Dossiê | Nemotron 3 Super | cada 6h | `agents/dossie.py` |
-| Escritor | Qwen 3.5 122B | cada 30min | `agents/escritor.py` |
+| Escritor | Nemotron 3 Super | cada 30min | `agents/escritor.py` |
 
 ---
 
@@ -177,7 +175,7 @@ OLLAMA_BASE_URL=https://ollama.com   # → /v1 é adicionado pelo cliente
 MODEL_TRIAGEM=deepseek-v3.2:cloud
 MODEL_FACTCHECKER=nemotron-3-super:cloud
 MODEL_DOSSIE=nemotron-3-super:cloud
-MODEL_ESCRITOR=qwen3.5:122b
+MODEL_ESCRITOR=nemotron-3-super:cloud
 TAVILY_API_KEY=tvly-dev-...          # primário
 EXA_API_KEY=...                      # fallback
 SERPER_API_KEY=...                   # último recurso (viés Google)
@@ -389,6 +387,49 @@ rm /tmp/noticia-git-tmp/index.lock
 GIT_DIR=/tmp/noticia-git-tmp git -C '/path/to/Curador de noticias' status
 ```
 
+### 3.10 `violates check constraint "articles_status_check"`
+
+**Causa:** A constraint da tabela `articles` não inclui `processed` — apenas: `draft`, `review`, `published`, `rejected`, `archived`, `fact_check`. O escritor tentava inserir artigos com `status='processed'`.
+
+**Sintomas:**
+- Artigos em `intake_queue` com `status='approved'` ficam presos
+- Logs do escritor: `new row for relation "articles" violates check constraint "articles_status_check"`
+- Artigos nunca aparecem no site apesar do escritor correr
+
+**Solução aplicada (2026-03-17):** O `escritor.py` foi alterado para publicar directamente com `status='published'` (em vez de `processed`). Não adicionar `processed` à constraint — não é necessário.
+
+**Verificar:**
+```sql
+SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'articles_status_check';
+-- Deve conter: 'published' mas NÃO 'processed'
+```
+
+**Se o erro reaparecer:** Verificar que `escritor.py` linha `_publicar_artigo()` tem `"status": "published"` e NÃO `"status": "processed"`.
+
+---
+
+### 3.11 Modelo Ollama Cloud retorna 404
+
+**Causa:** Um modelo LLM foi removido ou renomeado na plataforma Ollama Cloud. Modelos cloud têm tags específicas que podem mudar.
+
+**Sintomas:**
+- Logs: `404 Not Found` ou `model not found`
+- Agente falha silenciosamente, items ficam stuck no status anterior
+- Pipeline corre mas não avança
+
+**Modelos actuais (verificados 2026-03-17):**
+| Agente | Variável | Modelo |
+|--------|----------|--------|
+| Triagem | `MODEL_TRIAGEM` | `deepseek-v3:cloud` |
+| Fact-checker | `MODEL_FACT_CHECKER` | `nemotron-3-super:cloud` |
+| Dossier | `MODEL_DOSSIE` | `nemotron-3-super:cloud` |
+| Escritor | `MODEL_ESCRITOR` | `nemotron-3-super:cloud` |
+
+**Solução:** Verificar modelos disponíveis em https://ollama.com/library?q=&capability=tools — usar a tag `:cloud` para modelos hosted. Actualizar `.env` no pipeline e secrets no Fly.io:
+```bash
+fly secrets set MODEL_ESCRITOR="nome-correcto:cloud" --app noticia-scheduler
+```
+
 ---
 
 ## 4. MÓDULOS ACTIVOS vs OBSOLETOS
@@ -501,7 +542,7 @@ Confirmar que inclui: `'approved'` e `'fact_check'` na lista.
 - **Frontend:** Next.js 15, TypeScript strict, Tailwind CSS
 - **Pipeline:** Python 3.14, APScheduler, python-dotenv
 - **DB:** PostgreSQL (Supabase), triggers PL/pgSQL
-- **LLMs:** DeepSeek V3.2 (triagem), Nemotron 3 Super (fact-check + dossiê), Qwen 3.5 122B (escrita)
+- **LLMs:** DeepSeek V3.2 (triagem), Nemotron 3 Super (fact-check + dossiê + escrita)
 - **Search:** Tavily → Exa.ai → Serper.dev (cascata)
 - **Git:** github.com/WilsonArim/NoticIA
 

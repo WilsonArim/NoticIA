@@ -40,12 +40,12 @@ scheduler.add_job(run_fact_checker, IntervalTrigger(minutes=30), id="fact_checke
 # agente-dossie: cada 6h (Nemotron 3 Super)
 scheduler.add_job(run_dossie, IntervalTrigger(hours=6), id="dossie", max_instances=1)
 
-# pipeline-escritor: cada 30 min (Qwen 3.5)
+# pipeline-escritor: cada 30 min (Nemotron 3 Super)
 scheduler.add_job(run_escritor, IntervalTrigger(minutes=30), id="escritor", max_instances=1)
 
 
 if __name__ == "__main__":
-    logger.info("Iniciando scheduler Ollama — DeepSeek V3.2 + Nemotron 3 Super + Qwen 3.5")
+    logger.info("Iniciando scheduler Ollama — DeepSeek V3.2 + Nemotron 3 Super")
 
     # Arrancar agentes iniciais numa thread separada para não bloquear o bot
     def _startup():
