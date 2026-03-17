@@ -6,6 +6,7 @@ import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
 import { MotionProvider } from "@/components/providers/MotionProvider";
+import { Analytics } from "@vercel/analytics/react";
 
 const geist = GeistSans;
 
@@ -72,6 +73,7 @@ export default function RootLayout({
             </div>
           </MotionProvider>
         </ThemeProvider>
+        <Analytics />
       </body>
     </html>
   );

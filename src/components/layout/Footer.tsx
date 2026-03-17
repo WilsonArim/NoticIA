@@ -33,6 +33,7 @@ export function Footer() {
                 { href: "/categoria", label: "Artigos" },
                 { href: "/cronistas", label: "Cronistas" },
                 { href: "/search", label: "Pesquisar" },
+                { href: "/privacidade", label: "Privacidade" },
               ].map(({ href, label }) => (
                 <Link
                   key={href}
