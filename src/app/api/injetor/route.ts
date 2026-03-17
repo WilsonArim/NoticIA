@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { extract } from "@extractus/article-extractor";
 
 const AREAS_VALIDAS = [
   "portugal", "europa", "mundo", "economia", "tecnologia", "ciencia",
@@ -24,7 +25,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Body inválido" }, { status: 400 });
   }
 
-  const { url, titulo, area, prioridade } = body;
+  const { url, area, prioridade } = body;
 
   if (!url || typeof url !== "string") {
     return NextResponse.json({ error: "URL obrigatório" }, { status: 400 });
@@ -38,7 +39,6 @@ export async function POST(req: NextRequest) {
 
   const areaFinal = area && AREAS_VALIDAS.includes(area) ? area : "mundo";
   const prioridadeFinal = prioridade === "p2" || prioridade === "p3" ? prioridade : "p1";
-  const tituloFinal = (titulo?.trim() || url).slice(0, 200);
 
   // 3. Verificar duplicado
   const admin = createAdminClient();
@@ -58,12 +58,41 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // 4. Inserir
+  // 4. Tentar extrair conteúdo do artigo (timeout 10s)
+  let titulo = body.titulo?.trim() || "";
+  let conteudo = "";
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10_000);
+
+    const extracted = await extract(url, {}, { signal: controller.signal });
+    clearTimeout(timeout);
+
+    if (extracted) {
+      if (!titulo && extracted.title) {
+        titulo = extracted.title;
+      }
+      if (extracted.content) {
+        conteudo = extracted.content
+          .replace(/<[^>]+>/g, " ")
+          .replace(/\s+/g, " ")
+          .trim()
+          .slice(0, 3000);
+      }
+    }
+  } catch (err) {
+    console.warn("[injetor] Article extraction failed for", url, err);
+  }
+
+  const tituloFinal = (titulo || url).slice(0, 200);
+
+  // 5. Inserir na intake_queue
   const { data: inserted, error: insertError } = await admin
     .from("intake_queue")
     .insert({
       title: tituloFinal,
-      content: "",
+      content: conteudo,
       url,
       area: areaFinal,
       score: 0.95,
@@ -74,6 +103,7 @@ export async function POST(req: NextRequest) {
         source_agent: "manual",
         injetado_em: new Date().toISOString(),
         injetado_por: user.email ?? user.id,
+        content_extracted: conteudo.length > 0,
       },
     })
     .select("id, title")
@@ -84,5 +114,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Erro ao inserir na fila" }, { status: 500 });
   }
 
-  return NextResponse.json({ success: true, id: inserted.id, titulo: inserted.title });
+  return NextResponse.json({
+    success: true,
+    id: inserted.id,
+    titulo: inserted.title,
+    content_extracted: conteudo.length > 0,
+  });
 }
