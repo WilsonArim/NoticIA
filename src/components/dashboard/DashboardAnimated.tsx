@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Bot, ArrowRight } from "lucide-react";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { PipelineChart } from "@/components/dashboard/PipelineChart";
+import { InjetorPanel } from "@/components/dashboard/InjetorPanel";
 
 
 interface AgentStat {
@@ -223,6 +224,17 @@ export function DashboardAnimated({
             ))}
           </motion.div>
         )}
+      </motion.section>
+
+      {/* Injeção Manual */}
+      <motion.section variants={fadeUp} className="mb-8">
+        <h2
+          className="mb-4 font-serif text-xl font-semibold"
+          style={{ color: "var(--text-primary)" }}
+        >
+          Injetar Notícia Manual
+        </h2>
+        <InjetorPanel />
       </motion.section>
 
       {/* Recent Events */}
