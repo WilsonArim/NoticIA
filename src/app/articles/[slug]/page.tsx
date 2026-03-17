@@ -16,6 +16,7 @@ import { LazyConfidenceRing } from "@/components/3d/LazyConfidenceRing";
 import { VerificationStamp } from "@/components/article/VerificationStamp";
 import { sanitizeHtml } from "@/lib/utils/sanitize-html";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
+import { ShareButtons } from "@/components/article/ShareButtons";
 
 /** Strip the first H1 and H2 from HTML to avoid duplicate title/subtitle */
 function stripLeadingHeadings(html: string): string {
@@ -170,6 +171,8 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
   const uniqueSources = Array.from(uniqueSourcesMap.values());
 
   const areaColor = getAreaColor(article.area);
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://noticia-ia.vercel.app";
+  const articleUrl = `${siteUrl}/articles/${article.slug}`;
 
   return (
     <>
@@ -325,6 +328,13 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
               .map((paragraph: string, i: number) => <p key={i}>{paragraph}</p>)
           )}
         </div>
+
+        {/* ── Share ── */}
+        <ShareButtons
+          title={article.title}
+          url={articleUrl}
+          lead={article.lead || undefined}
+        />
 
         {/* ── Camada "Esqueleto": Claims ── */}
         {articleClaims && articleClaims.length > 0 && (
