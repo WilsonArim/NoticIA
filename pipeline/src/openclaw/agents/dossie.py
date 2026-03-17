@@ -89,14 +89,40 @@ WATCHLIST = [
 ]
 
 
+def _carregar_watchlist(supabase) -> list[dict]:
+    """Lê temas activos da DB. Fallback para WATCHLIST hardcoded se falhar."""
+    try:
+        result = (
+            supabase.table("dossie_watchlist")
+            .select("*")
+            .eq("enabled", True)
+            .execute()
+        )
+        if result.data:
+            return [
+                {
+                    "id": item["id"],
+                    "nome": item["nome"],
+                    "queries": item["queries"],
+                    "area": item["area"],
+                    "prioridade": item["prioridade"],
+                }
+                for item in result.data
+            ]
+    except Exception as e:
+        logger.warning("Falha a ler watchlist da DB: %s — usando hardcoded", e)
+    return WATCHLIST
+
+
 def run_dossie():
     supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
     hoje = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    watchlist = _carregar_watchlist(supabase)
 
-    logger.info("Dossiê: iniciando ciclo para %d temas", len(WATCHLIST))
+    logger.info("Dossiê: iniciando ciclo para %d temas", len(watchlist))
 
     total_inseridos = 0
-    for tema in WATCHLIST:
+    for tema in watchlist:
         try:
             inseridos = _processar_tema(supabase, tema, hoje)
             total_inseridos += inseridos
