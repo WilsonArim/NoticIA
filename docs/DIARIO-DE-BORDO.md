@@ -7,6 +7,42 @@
 
 ## 2026-03-18 (Sessão 2 — Cowork)
 
+### 15:00 UTC — Paperclip avaliado como orquestrador futuro (P3.5)
+
+**O que é:** [Paperclip](https://paperclip.ing/) ([GitHub](https://github.com/paperclipai/paperclip)) — plataforma open-source (MIT, 4.3k stars) de orquestração de agentes como empresa. Node.js + React + PostgreSQL.
+**Porque interessa:** Substitui pg_cron + APScheduler + Cowork tasks por camada unificada com org chart, heartbeats, budget enforcement, governance e audit trails.
+**Decisão:** Adicionado ao plano como P3.5. Pode ser promovido a P2.1 se se saltar Procrastinate.
+**Potencial:** Clipmart marketplace — NoticIA publicável como template "AI Newsroom".
+
+### 14:30 UTC — Plano de Infraestrutura Robusta criado
+
+**Ficheiro:** `docs/PLANO-INFRAESTRUTURA-ROBUSTA.md`
+**Base:** Pesquisa LMNotebook (8 áreas) + Auditoria Cowork + APIs verificadas
+
+**3 Fases, 16 items (agora 17 com Paperclip):**
+- P1 (esta semana): Stored procedure atómica, heartbeats Better Stack, circuit breaker Tenacity+PyBreaker, alertas pg_cron→Telegram, gitleaks, idempotência
+- P2 (este mês): Procrastinate (substituir APScheduler), CI/CD completo com rollback, testes mock LLM, trace IDs, Infisical secrets, Supabase Sentinel RLS
+- P3 (trimestre): Separar containers, RunPod serverless, multi-idioma JSONB, Promptfoo evals
+
+**Decisões arquitecturais:**
+- Procrastinate em vez de Celery/Temporal (usa PostgreSQL existente, sem broker extra)
+- Better Stack em vez de Datadog/Sentry (free tier adequado, heartbeat pattern)
+- Stored Procedure PL/pgSQL em vez de 6 inserts separados (atomicidade garantida pelo Postgres)
+- Infisical em vez de HashiCorp Vault (free tier, SDK Python, integra com Fly.io)
+
+### 13:30 UTC — Fix Escritor: títulos incorrectos + fontes em falta (commit `4cbdc62`)
+
+**Problema 1:** Artigo do Sporting tinha título "Bodø/Glimt avança para os quartos" — invertido.
+**Causa:** Nemotron traduz literalmente o título da intake_queue sem verificar lógica.
+**Fix:** Adicionadas regras explícitas ao prompt: "sujeito = protagonista", "nunca traduzir literalmente".
+
+**Problema 2:** 4 artigos de hoje sem fontes (article_id = None após insert).
+**Causa:** Primeiro fix removeu `.select("id")` mas PostgREST não devolve dados sem ele.
+**Fix:** Insert separado do fetch: `insert()` → `select().eq(slug).single()`.
+**Commit:** `4cbdc62` — deployed + Fly.io leases limpas.
+
+**Título do Sporting corrigido directamente na DB:** "Sporting garante reviravolta épica e avança para os quartos da Liga dos Campeões"
+
 ### 13:00 UTC — Pipeline COMPLETA e a fluir ✅
 
 **Estado final confirmado pelo Claude Code:**
