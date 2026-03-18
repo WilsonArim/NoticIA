@@ -155,9 +155,9 @@ def _publicar_artigo(supabase, item: dict, artigo: dict):
         "tags": artigo.get("tags", []),
         "language": "pt",
         "verification_status": "none",
-    }).select("id").single().execute()
+    }).execute()
 
-    article_id = result.data.get("id") if result.data else None
+    article_id = result.data[0].get("id") if result.data else None
 
     # Inserir fontes, claim e ligações para que apareçam no frontend
     if article_id:
@@ -223,12 +223,10 @@ def _inserir_fontes_do_artigo(supabase, article_id: str, item: dict, artigo: dic
                     "reliability_score": 0.75,
                     "metadata": {"via": "fact_checker"},
                 })
-                .select("id")
-                .single()
                 .execute()
             )
             if ins.data:
-                source_ids.append(ins.data["id"])
+                source_ids.append(ins.data[0]["id"])
         except Exception as e:
             logger.warning("Escritor: erro ao inserir source %s: %s", url[:60], e)
 
@@ -250,11 +248,9 @@ def _inserir_fontes_do_artigo(supabase, article_id: str, item: dict, artigo: dic
                 "verification_status": "verified",
                 "confidence_score": min(1.0, float(fact_summary.get("certainty_score", 0.8))),
             })
-            .select("id")
-            .single()
             .execute()
         )
-        claim_id = c.data.get("id") if c.data else None
+        claim_id = c.data[0].get("id") if c.data else None
     except Exception as e:
         logger.warning("Escritor: erro ao inserir claim: %s", e)
 
