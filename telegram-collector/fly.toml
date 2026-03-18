@@ -1,0 +1,27 @@
+# Fly.io — Curador de Noticias: Telegram Collector
+# Deploy: cd telegram-collector && fly deploy
+# Primeiro deploy: ver instruções abaixo
+
+app = "noticia-telegram"
+primary_region = "cdg"  # Paris
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PYTHONUNBUFFERED = "1"
+  LOG_LEVEL = "INFO"
+  CYCLE_INTERVAL_MINUTES = "5"
+  MESSAGE_LOOKBACK_HOURS = "2"
+  MAX_MESSAGES_PER_CHANNEL = "20"
+
+# Persistent volume for Telethon session (keeps auth between restarts)
+[mounts]
+  source = "telegram_sessions"
+  destination = "/app/sessions"
+
+# Máquina mínima — o collector é leve (Telethon + HTTP inserts)
+[[vm]]
+  memory = "256mb"
+  cpu_kind = "shared"
+  cpus = 1

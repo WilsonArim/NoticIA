@@ -61,10 +61,20 @@ FASE 1 — OBSERVAÇÃO (recolha de dados brutos)
 
 Corre estas queries no Supabase para recolher o estado actual. NÃO tires conclusões ainda — apenas recolhe.
 
-1A. Fluxo de dados (últimas 4h):
+1A. Fluxo de dados — raw_events (últimas 4h):
 SELECT source_collector, count(*) as total, max(created_at) as ultimo
 FROM raw_events WHERE created_at > now() - interval '4 hours'
 GROUP BY source_collector;
+-- NOTA: RSS e GDELT inserem em raw_events via pg_cron.
+-- Telegram insere DIRECTAMENTE na intake_queue (não aparece aqui).
+
+1A-BIS. Fluxo de dados — Telegram (últimas 4h):
+SELECT count(*) as telegram_items,
+       max(created_at) as ultimo_telegram
+FROM intake_queue
+WHERE metadata->>'source' = 'telegram-standalone'
+AND created_at > now() - interval '4 hours';
+-- Se 0: o Fly.io app noticia-telegram pode estar parado.
 
 1B. Estado da intake_queue:
 SELECT status, count(*) as total, min(created_at) as mais_antigo,
