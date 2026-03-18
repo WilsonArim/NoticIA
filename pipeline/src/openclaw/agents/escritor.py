@@ -22,6 +22,7 @@ SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
 MODEL = os.getenv("MODEL_ESCRITOR", "nemotron-3-super:cloud")
 BATCH_SIZE = int(os.getenv("ESCRITOR_BATCH_SIZE", "5"))
 MAX_EVENT_AGE_DAYS = int(os.getenv("MAX_EVENT_AGE_DAYS", "7"))
+CERTAINTY_THRESHOLD = float(os.getenv("ESCRITOR_CERTAINTY_THRESHOLD", "0.7"))
 
 
 def run_escritor():
@@ -130,7 +131,14 @@ def _publicar_artigo(supabase, item: dict, artigo: dict):
     slug = artigo.get("slug", "") or _slugify(artigo.get("titulo", item.get("title", "")))
 
     fact_summary = item.get("fact_check_summary") or {}
-    certainty = fact_summary.get("certainty_score", 0.8)
+    certainty = float(fact_summary.get("certainty_score", 0.0))
+
+    # CRIT-005: Quality gate — rejeita artigos abaixo do threshold de certeza
+    if certainty < CERTAINTY_THRESHOLD:
+        raise ValueError(
+            f"QUALITY_GATE: certainty_score={certainty:.2f} < threshold={CERTAINTY_THRESHOLD} "
+            f"para '{item.get('title', '')[:60]}'"
+        )
 
     result = supabase.table("articles").insert({
         "title": artigo.get("titulo", item.get("title", "")),
