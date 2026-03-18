@@ -26,19 +26,19 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-scheduler = BackgroundScheduler()
+scheduler = BackgroundScheduler(job_defaults={"misfire_grace_time": 120})
 
 # pipeline-triagem: cada 20 min (DeepSeek V3.2)
 scheduler.add_job(run_triagem, IntervalTrigger(minutes=20), id="triagem", max_instances=1)
 
-# agente-fact-checker: cada 30 min (Nemotron 3 Super)
-scheduler.add_job(run_fact_checker, IntervalTrigger(minutes=30), id="fact_checker", max_instances=1)
-
-# agente-dossie: cada 6h (Nemotron 3 Super)
-scheduler.add_job(run_dossie, IntervalTrigger(hours=6), id="dossie", max_instances=1)
+# agente-fact-checker: cada 25 min (Nemotron 3 Super) — offset do escritor para evitar colisão
+scheduler.add_job(run_fact_checker, IntervalTrigger(minutes=25), id="fact_checker", max_instances=1)
 
 # pipeline-escritor: cada 30 min (Nemotron 3 Super)
 scheduler.add_job(run_escritor, IntervalTrigger(minutes=30), id="escritor", max_instances=1)
+
+# agente-dossie: cada 6h (Nemotron 3 Super)
+scheduler.add_job(run_dossie, IntervalTrigger(hours=6), id="dossie", max_instances=1)
 
 
 if __name__ == "__main__":
