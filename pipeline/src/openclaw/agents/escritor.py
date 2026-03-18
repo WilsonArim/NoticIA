@@ -99,6 +99,13 @@ REGRAS LINGUÍSTICAS PT-PT:
 - Factos primeiro, contexto depois
 {"- Este artigo vem do dossiê de investigação: apresenta os factos tal como são, sem suavizar a realidade" if is_dossie else ""}
 
+REGRAS DO TÍTULO:
+- O título DEVE ser factualmente correcto e coerente com o corpo do artigo
+- Se o título sugerido é ambíguo ou contraditório com o conteúdo, REESCREVE-O
+- O sujeito do título deve ser o protagonista principal da notícia (quem fez a acção)
+- NUNCA traduzir literalmente um título noutra língua sem verificar a lógica
+- Se há dois actores (ex: Equipa A vs Equipa B), o título deve clarificar quem fez o quê
+
 DADOS DO ARTIGO:
 Título sugerido: {item.get("title", "")}
 Conteúdo base: {item.get("content", "")[:1000]}
