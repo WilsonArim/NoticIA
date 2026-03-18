@@ -629,15 +629,16 @@ Paperclip (self-hosted, PostgreSQL/Supabase)
 
 ```
 Semana 1 (18-24 Mar):
-├── P1.1 Stored Procedure atómica
-├── P1.2 Heartbeats Better Stack
+├── P1.1 Stored Procedure atómica ✅ FEITO (commit fe12732)
+├── P1.2 SALTADO — Paperclip tem heartbeats nativos
 ├── P1.3 Circuit breaker Tenacity+PyBreaker
-├── P1.4 Alertas pg_cron → Telegram
+├── P1.4 Alertas pg_cron → Telegram (manter como backup independente do Python)
 ├── P1.5 Gitleaks pre-commit
-└── P1.6 Idempotência ON CONFLICT
+├── P1.6 Idempotência ON CONFLICT
+└── 🆕 PAPERCLIP — Instalar, criar empresa NoticIA, migrar agentes
 
 Semana 2-3 (25 Mar - 7 Abr):
-├── P2.1 Procrastinate (substituir APScheduler) — OU saltar se Paperclip promovido
+├── P2.1 SALTADO — Paperclip substitui Procrastinate
 ├── P2.2 CI/CD completo + rollback
 └── P2.3 Testes com mock LLM
 

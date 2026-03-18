@@ -7,6 +7,47 @@
 
 ## 2026-03-18 (Sessão 2 — Cowork)
 
+### 22:30 UTC — Paperclip INSTALADO e CONFIGURADO ✅
+
+**25 agentes configurados** com org chart completo:
+```
+Editor-Chefe [CEO] — claude_local — 60min
+├── Engenheiro-Chefe [CTO] — claude_local — 4h
+├── VP Colecta — 30min
+│   ├── Coletor RSS — http POST → Supabase — 15min
+│   ├── Coletor GDELT — http POST → Supabase — 15min
+│   ├── Bridge Events — http POST → Supabase — 20min
+│   └── Coletor Telegram — process (fly status) — 5min
+├── VP Editorial — 60min
+│   ├── Triagem — claude_local — 20min
+│   ├── Fact-Checker — claude_local — 25min
+│   ├── Escritor — claude_local — 30min
+│   └── Dossiê — claude_local — 6h
+└── VP Publicação — 60min
+    ├── Publisher P2/P3 — claude_local — 30min
+    └── 10 Cronistas — claude_local — 24h
+```
+
+**Correcções aplicadas pelo Claude Code:**
+- Coletor Telegram: mudado de http → process (`fly status --json`)
+- Content-Type adicionado aos headers HTTP
+- GDELT + Telegram: status resetado de error → idle
+- Editor-Chefe pausado manualmente (activar quando quisermos arrancar)
+
+**Notas:**
+- Cold start das Edge Functions pode exceder 15s — pode precisar de `timeoutSec` maior
+- Todos os agentes em estado `idle` — aguardam primeiro heartbeat
+- Alertas Telegram via ALERTAS.md do Engenheiro-Chefe (Paperclip v2026.318 sem webhooks nativos)
+
+### 18:44 UTC — P1.1 Stored Procedure CONFIRMADA ✅
+
+**3 artigos publicados COM fontes (4-6 cada):**
+- "Israel mata Ministro de Inteligência iraniano" — 6 fontes
+- "ANAC assegura legalidade no concurso de handling" — 4 fontes
+- "Greve no aeroporto de Berlim" — 4 fontes
+
+A stored procedure `publish_article_with_sources` funciona. Nunca mais artigos sem fontes.
+
 ### 15:00 UTC — Paperclip avaliado como orquestrador futuro (P3.5)
 
 **O que é:** [Paperclip](https://paperclip.ing/) ([GitHub](https://github.com/paperclipai/paperclip)) — plataforma open-source (MIT, 4.3k stars) de orquestração de agentes como empresa. Node.js + React + PostgreSQL.
