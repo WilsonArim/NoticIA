@@ -140,7 +140,7 @@ def _publicar_artigo(supabase, item: dict, artigo: dict):
             f"para '{item.get('title', '')[:60]}'"
         )
 
-    result = supabase.table("articles").insert({
+    article_data = {
         "title": artigo.get("titulo", item.get("title", "")),
         "subtitle": artigo.get("subtitulo", ""),
         "slug": slug,
@@ -151,13 +151,16 @@ def _publicar_artigo(supabase, item: dict, artigo: dict):
         "priority": item.get("priority", "p2"),
         "certainty_score": certainty,
         "bias_score": item.get("bias_score", 0.20),
-        "status": "published",  # publica directamente — sem etapa 'processed' (constraint)
+        "status": "published",
         "tags": artigo.get("tags", []),
         "language": "pt",
         "verification_status": "none",
-    }).execute()
+    }
+    supabase.table("articles").insert(article_data).execute()
 
-    article_id = result.data[0].get("id") if result.data else None
+    # Buscar o ID do artigo inserido pelo slug (único)
+    fetched = supabase.table("articles").select("id").eq("slug", slug).single().execute()
+    article_id = fetched.data.get("id") if fetched.data else None
 
     # Inserir fontes, claim e ligações para que apareçam no frontend
     if article_id:
@@ -212,21 +215,19 @@ def _inserir_fontes_do_artigo(supabase, article_id: str, item: dict, artigo: dic
                 source_ids.append(existing.data["id"])
                 continue
 
-            ins = (
-                supabase.table("sources")
-                .insert({
-                    "url": url,
-                    "domain": domain,
-                    "title": domain,
-                    "content_hash": content_hash,
-                    "source_type": "web",
-                    "reliability_score": 0.75,
-                    "metadata": {"via": "fact_checker"},
-                })
-                .execute()
-            )
-            if ins.data:
-                source_ids.append(ins.data[0]["id"])
+            supabase.table("sources").insert({
+                "url": url,
+                "domain": domain,
+                "title": domain,
+                "content_hash": content_hash,
+                "source_type": "web",
+                "reliability_score": 0.75,
+                "metadata": {"via": "fact_checker"},
+            }).execute()
+            # Buscar ID pelo content_hash (único)
+            fetched = supabase.table("sources").select("id").eq("content_hash", content_hash).single().execute()
+            if fetched.data:
+                source_ids.append(fetched.data["id"])
         except Exception as e:
             logger.warning("Escritor: erro ao inserir source %s: %s", url[:60], e)
 
@@ -238,19 +239,26 @@ def _inserir_fontes_do_artigo(supabase, article_id: str, item: dict, artigo: dic
     claim_text = (artigo.get("lead") or notas or item.get("title", "Factos verificados"))[:500]
     claim_id: str | None = None
     try:
-        c = (
+        claim_data = {
+            "original_text": claim_text,
+            "subject": item.get("title", "")[:100],
+            "predicate": "verificado por",
+            "object": "múltiplas fontes",
+            "verification_status": "verified",
+            "confidence_score": min(1.0, float(fact_summary.get("certainty_score", 0.8))),
+        }
+        supabase.table("claims").insert(claim_data).execute()
+        # Buscar claim pelo texto exacto (inserido agora)
+        fetched_claim = (
             supabase.table("claims")
-            .insert({
-                "original_text": claim_text,
-                "subject": item.get("title", "")[:100],
-                "predicate": "verificado por",
-                "object": "múltiplas fontes",
-                "verification_status": "verified",
-                "confidence_score": min(1.0, float(fact_summary.get("certainty_score", 0.8))),
-            })
+            .select("id")
+            .eq("original_text", claim_text)
+            .order("created_at", desc=True)
+            .limit(1)
+            .single()
             .execute()
         )
-        claim_id = c.data[0].get("id") if c.data else None
+        claim_id = fetched_claim.data.get("id") if fetched_claim.data else None
     except Exception as e:
         logger.warning("Escritor: erro ao inserir claim: %s", e)
 
