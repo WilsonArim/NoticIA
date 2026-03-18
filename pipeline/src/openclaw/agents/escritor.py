@@ -7,9 +7,7 @@ import os
 import json
 import logging
 import re
-import hashlib
 from datetime import datetime, timezone, timedelta
-from urllib.parse import urlparse
 
 from supabase import create_client
 
@@ -135,6 +133,12 @@ Escreve o artigo completo em JSON:
 
 
 def _publicar_artigo(supabase, item: dict, artigo: dict):
+    """Publica artigo + fontes + claims numa transação atómica via stored procedure.
+
+    Usa supabase.rpc('publish_article_with_sources', payload) que insere tudo
+    no Postgres numa única transação — ou tudo ou nada. Resolve definitivamente
+    o problema de artigos publicados sem fontes.
+    """
     slug = artigo.get("slug", "") or _slugify(artigo.get("titulo", item.get("title", "")))
 
     fact_summary = item.get("fact_check_summary") or {}
@@ -147,49 +151,8 @@ def _publicar_artigo(supabase, item: dict, artigo: dict):
             f"para '{item.get('title', '')[:60]}'"
         )
 
-    article_data = {
-        "title": artigo.get("titulo", item.get("title", "")),
-        "subtitle": artigo.get("subtitulo", ""),
-        "slug": slug,
-        "lead": artigo.get("lead", ""),
-        "body": artigo.get("corpo_html", ""),
-        "body_html": artigo.get("corpo_html", ""),
-        "area": item.get("area", "mundo"),
-        "priority": item.get("priority", "p2"),
-        "certainty_score": certainty,
-        "bias_score": item.get("bias_score", 0.20),
-        "status": "published",
-        "tags": artigo.get("tags", []),
-        "language": "pt",
-        "verification_status": "none",
-    }
-    supabase.table("articles").insert(article_data).execute()
-
-    # Buscar o ID do artigo inserido pelo slug (único)
-    fetched = supabase.table("articles").select("id").eq("slug", slug).single().execute()
-    article_id = fetched.data.get("id") if fetched.data else None
-
-    # Inserir fontes, claim e ligações para que apareçam no frontend
-    if article_id:
-        _inserir_fontes_do_artigo(supabase, article_id, item, artigo)
-
-    supabase.table("intake_queue").update({
-        "status": "processed",
-    }).eq("id", item["id"]).execute()
-
-    logger.info("Escritor: artigo publicado '%s'", artigo.get("titulo", "")[:50])
-
-
-def _inserir_fontes_do_artigo(supabase, article_id: str, item: dict, artigo: dict):
-    """Insere sources + claim principal + article_claims + claim_sources.
-
-    Usa as fontes descobertas pelo fact-checker (fact_check_summary.fontes_encontradas)
-    mais a URL original da notícia. Sem estas inserções as fontes não aparecem no frontend.
-    """
-    fact_summary = item.get("fact_check_summary") or {}
+    # Juntar fontes: URL original + fontes do fact-checker (dedup, máx 6)
     fontes_fc = fact_summary.get("fontes_encontradas", [])
-
-    # Juntar URL original + fontes do fact-checker (dedup, máx 6)
     url_original = item.get("url", "")
     todas_fontes: list[str] = []
     vistas: set[str] = set()
@@ -200,99 +163,40 @@ def _inserir_fontes_do_artigo(supabase, article_id: str, item: dict, artigo: dic
         if len(todas_fontes) >= 6:
             break
 
-    if not todas_fontes:
-        logger.debug("Escritor: sem fontes para artigo %s", article_id)
-        return
-
-    # 1. Inserir / reutilizar sources
-    source_ids: list[str] = []
-    for url in todas_fontes:
-        try:
-            domain = urlparse(url).netloc or url[:50]
-            content_hash = hashlib.md5(url.encode()).hexdigest()
-
-            existing = (
-                supabase.table("sources")
-                .select("id")
-                .eq("content_hash", content_hash)
-                .maybeSingle()
-                .execute()
-            )
-            if existing.data:
-                source_ids.append(existing.data["id"])
-                continue
-
-            supabase.table("sources").insert({
-                "url": url,
-                "domain": domain,
-                "title": domain,
-                "content_hash": content_hash,
-                "source_type": "web",
-                "reliability_score": 0.75,
-                "metadata": {"via": "fact_checker"},
-            }).execute()
-            # Buscar ID pelo content_hash (único)
-            fetched = supabase.table("sources").select("id").eq("content_hash", content_hash).single().execute()
-            if fetched.data:
-                source_ids.append(fetched.data["id"])
-        except Exception as e:
-            logger.warning("Escritor: erro ao inserir source %s: %s", url[:60], e)
-
-    if not source_ids:
-        return
-
-    # 2. Criar claim principal com o lead do artigo (ou as notas do fact-checker)
+    # Notas do fact-checker para o claim
     notas = fact_summary.get("notas", "")
     claim_text = (artigo.get("lead") or notas or item.get("title", "Factos verificados"))[:500]
-    claim_id: str | None = None
-    try:
-        claim_data = {
-            "original_text": claim_text,
-            "subject": item.get("title", "")[:100],
-            "predicate": "verificado por",
-            "object": "múltiplas fontes",
-            "verification_status": "verified",
-            "confidence_score": min(1.0, float(fact_summary.get("certainty_score", 0.8))),
-        }
-        supabase.table("claims").insert(claim_data).execute()
-        # Buscar claim pelo texto exacto (inserido agora)
-        fetched_claim = (
-            supabase.table("claims")
-            .select("id")
-            .eq("original_text", claim_text)
-            .order("created_at", desc=True)
-            .limit(1)
-            .single()
-            .execute()
+
+    # Payload para a stored procedure atómica
+    payload = {
+        "title": artigo.get("titulo", item.get("title", "")),
+        "subtitle": artigo.get("subtitulo", ""),
+        "slug": slug,
+        "lead": artigo.get("lead", ""),
+        "body": artigo.get("corpo_html", ""),
+        "body_html": artigo.get("corpo_html", ""),
+        "area": item.get("area", "mundo"),
+        "priority": item.get("priority", "p2"),
+        "certainty_score": certainty,
+        "bias_score": float(item.get("bias_score", 0.20)),
+        "tags": artigo.get("tags", []),
+        "fontes": todas_fontes,
+        "claim_text": claim_text,
+        "claim_subject": item.get("title", "")[:100],
+        "intake_queue_id": item["id"],
+    }
+
+    result = supabase.rpc("publish_article_with_sources", {"payload": json.dumps(payload)}).execute()
+
+    if result.data and result.data.get("success"):
+        logger.info(
+            "Escritor: artigo publicado '%s' (id=%s, fontes=%d)",
+            artigo.get("titulo", "")[:50],
+            result.data.get("article_id", "?"),
+            result.data.get("sources_count", 0),
         )
-        claim_id = fetched_claim.data.get("id") if fetched_claim.data else None
-    except Exception as e:
-        logger.warning("Escritor: erro ao inserir claim: %s", e)
-
-    if not claim_id:
-        return
-
-    # 3. Ligar claim ao artigo
-    try:
-        supabase.table("article_claims").insert({
-            "article_id": article_id,
-            "claim_id": claim_id,
-            "position": 0,
-        }).execute()
-    except Exception as e:
-        logger.warning("Escritor: erro ao inserir article_claims: %s", e)
-
-    # 4. Ligar cada source ao claim
-    for source_id in source_ids:
-        try:
-            supabase.table("claim_sources").insert({
-                "claim_id": claim_id,
-                "source_id": source_id,
-                "supports": True,
-                "excerpt": None,
-            }).execute()
-        except Exception as e:
-            logger.warning("Escritor: erro ao inserir claim_sources (source=%s): %s", source_id, e)
+    else:
+        logger.error("Escritor: RPC falhou para '%s': %s", artigo.get("titulo", "")[:50], result.data)
 
 
 def _slugify(text: str) -> str:
