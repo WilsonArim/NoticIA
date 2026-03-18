@@ -1,0 +1,213 @@
+================================================================================
+AUDITORIA COMPLETA — CURADOR DE NOTICIAS (2026-03-18)
+================================================================================
+
+RELATÓRIO COMPLETO: AUDITORIA-2026-03-18.md (619 linhas)
+
+================================================================================
+EXECUTIVE SUMMARY
+================================================================================
+
+Score Geral (Vibe Code):         6.2/10  ⚠️
+Risco de Segurança:             CRÍTICO (5 issues críticos)
+Readiness Produção:             60% (funcional, não seguro)
+
+Tempo para "Go-Live" seguro:    ~2 semanas (Fase 1-2 remediacao)
+
+================================================================================
+TOP 5 VULNERABILIDADES CRÍTICAS
+================================================================================
+
+[CRIT-001] API Keys Hardcoded em .env.local
+           → Ficheiro: .env.local (COMMIT NO GIT!)
+           → Keys expostas: PUBLISH_API_KEY, TAVILY_API_KEY, SERPER_API_KEY, EXA_API_KEY, OLLAMA_API_KEY
+           → Acao: ROTATE IMEDIATAMENTE, remover de git history
+           → Esforço: 30 min
+
+[CRIT-002] RLS Disabled em 3 Tabelas Públicas
+           → Tabelas: publish_blocks, dossie_watchlist, instagram_posts
+           → Acao: ALTER TABLE ... ENABLE ROW LEVEL SECURITY
+           → Esforço: 1h
+
+[CRIT-003] PL/pgSQL Search Path Mutable (3 funções)
+           → Funções: enforce_publish_quality, get_secret, log_publish_block
+           → Acao: ADD SET search_path = public
+           → Esforço: 30 min
+
+[CRIT-004] "writing" Status Descontinuado em DB Schema
+           → Problema: Status em constraint mas Ollama pode usar
+           → Acao: Remover de constraint + update Ollama code
+           → Esforço: 1h
+
+[CRIT-005] Escritor Bypassa Quality Gates
+           → Problema: escritor.py insere artigos com status='published' SEM validar certainty_score
+           → Acao: Adicionar validacao antes de INSERT
+           → Esforço: 2h
+
+================================================================================
+VIBE CODE AUDIT BREAKDOWN
+================================================================================
+
+Readability:    7.5/10  — Código bem-estruturado, algumas type hints soltas
+Maintainability: 6.0/10  — Docs desactualizadas, confusão estado (Cowork vs Ollama)
+Performance:    5.5/10  — Queries sem índices, RLS ineficiente
+Security:       4.0/10  — API keys expostas, RLS gaps, search_path issues
+Testing:        6.0/10  — Vitest existe, mas testes não rodam no CI
+
+================================================================================
+ARQUITECTURA — ESTADO REAL VS PLANEADO
+================================================================================
+
+Discrepâncias Maiores:
+  • Pipeline: Planeado = Edge Functions (Grok API) → Real = Hybrid (Cowork + Ollama Local)
+  • Dispatcher: Planeado = Existe → Real = NÃO IMPLEMENTADO (buraco arquitectural)
+  • Cronistas: Planeado = Task semanal → Real = Desactivada
+  • Status "writing": Ainda em DB schema, mas descontinuado
+
+Implementado ✅:
+  • 7 Coletores funcional (RSS, GDELT, Telegram, Crawl4AI, X-Cowork)
+  • 20 Reporters com keyword scoring
+  • 3 Agentes Editoriais (Auditor, Escritor, Editor-Chefe)
+  • 10 Cronistas com identidade clara
+  • 4 Engenheiros de Monitorizacao
+  • Base de dados com 22 tabelas
+
+Não Implementado ❌:
+  • Dispatcher (routing inteligente de eventos para reporters)
+  • Frontend cronistas (seccao /cronistas/[id])
+  • HITL Reviews interface
+  • Scheduler Ollama (ficheiro não existe no repo!)
+  • Instagram publishing automation
+
+================================================================================
+SECURITY AUDIT — OWASP Top 10
+================================================================================
+
+A01 — Broken Access Control
+    └─ RLS disabled (3 tabelas públicas)
+
+A02 — Cryptographic Failures
+    └─ API keys plain text em .env.local (CRÍTICO)
+
+A03 — Injection
+    └─ PL/pgSQL search_path mutable (3 funções)
+
+A05 — Security Misconfiguration
+    └─ Edge Functions CORS unchecked
+
+A07 — Authentication
+    └─ Password breach check disabled (Supabase Auth)
+
+================================================================================
+SOTA AGENT ENGINEERING
+================================================================================
+
+Identity:               ✅ Cronistas têm persona clara (score: 7/10)
+Prompt Template XML:    ❌ Faltam (score: 3/10)
+Tools Mínimos:          ✅ Cowork usa Claude nativo (score: 8/10)
+Verification Loop:      ✅ Triagem → Verificacao → Escritor (score: 7/10)
+Handoff Between Agents: ✅ Via intake_queue status (score: 8/10)
+FinOps Tracking:        ⚠️  Token logs existem, mas Ollama/Cowork não custam (score: 4/10)
+Error Handling:         ⚠️  Try-catch básico, sem retry loops (score: 5/10)
+Context Engineering:    ✅ Prompts com briefing (score: 7/10)
+
+SOTA Total Score: 6.2/10
+
+================================================================================
+DATABASE METRICS
+================================================================================
+
+raw_events:         2103 rows  ✅ Coletores fluindo
+intake_queue:       623 rows   ⚠️ 623 pending (backlog)
+articles:           124 rows   ✅ 61 published (3 semanas)
+sources:            539 rows   ✅ Dedup funcionando
+claims:             261 rows   ✅ Extracted OK
+chronicles:         10 rows    ⚠️ Só draft (não publicado)
+agent_logs:         92 rows    ✅ Logging funcional
+pipeline_runs:      777 rows   ⚠️ Crescimento indefinido (sem cleanup)
+token_logs:         0 rows     N/A Ollama/Cowork não custam
+
+================================================================================
+TOP 20 ISSUES PRIORIZADOS
+================================================================================
+
+CRÍTICO (5):
+  1. API keys hardcoded
+  2. RLS disabled
+  3. PL/pgSQL search_path
+  4. "writing" status descontinuado
+  5. Escritor bypassa quality gates
+
+ALTO (6):
+  6. Scheduler Ollama missing
+  7. RLS ineficiente (auth.<func>() por row)
+  8. Índices faltantes
+  9. Dispatcher não implementado
+  10. SUPABASE_SERVICE_ROLE_KEY hardcoded
+  11. Token logs sem retenção
+  12. CORS unchecked
+
+MÉDIO (9):
+  13. Cronistas task desactivada
+  14. Frontend cronistas incompleto
+  15. HITL reviews interface missing
+  16. Circuit breaker não implementado
+  17. Error handling inconsistente
+  18. AbortController timeout curto
+  19. ARCHITECTURE-MASTER.md desatualizado
+  20. Sem load testing
+
+================================================================================
+ROADMAP DE REMEDIACAO
+================================================================================
+
+FASE 1: SEGURANCA (1-2 dias) — BLOCKER PARA PRODUCAO
+  ✓ Rotate API keys
+  ✓ Activar RLS em 3 tabelas
+  ✓ Remove "writing" status
+  ✓ Add search_path a funções
+  ✓ Validar quality gates no escritor
+
+FASE 2: ARQUITECTURA (3-5 dias)
+  ✓ Verificar/commit scheduler Ollama
+  ✓ Refactor RLS ineficiente
+  ✓ Add índices críticos
+  ✓ Implementar Dispatcher (ou documentar keyword-based)
+
+FASE 3: FEATURES (1-2 sprints)
+  ✓ HITL reviews UI
+  ✓ Reactivar cronistas scheduler
+  ✓ Load testing (k6)
+  ✓ Cleanup token_logs
+
+================================================================================
+RECOMENDACOES IMEDIATAS
+================================================================================
+
+1. BLOQUEAR PUBLICACAO até remediacao de CRIT-001 a CRIT-005 (1 semana)
+
+2. Criar GitHub Action para detectar secrets em commits:
+   - detect-secrets, TruffleHog, ou GitGuardian
+
+3. Implementar pre-commit hook: detect-secrets, prettier, eslint
+
+4. Agora: Audit todos os 7 Edge Functions para CORS configuration
+
+5. Documentar:
+   - Qual Ollama setup está realmente em uso (Mac local vs Cloud)
+   - Scheduler Ollama location e startup procedure
+
+================================================================================
+CONCLUSAO
+================================================================================
+
+O Curador de Noticias é um projecto ambicioso com boa arquitectura de agentes,
+mas vulnerabilidades críticas de segurança impedem produção imediata.
+
+Score Geral:        6.2/10
+Criticalidade:      BLOCKER (5 issues críticos)
+Go-Live Tempo:      ~2 semanas (após Fase 1-2)
+
+Recomendacao: Não publicar até remediacao de todas vulnerabilidades críticas.
+
+================================================================================
