@@ -10,8 +10,10 @@ Pesquisa: Tavily (primário) → Exa.ai (fallback) → Serper.dev (último recur
 Artigos normais: 1 pesquisa composta | Artigos dossiê: 3 pesquisas dirigidas
 """
 import os
+import re
 import json
 import logging
+from datetime import datetime, timezone, timedelta
 
 import httpx
 from supabase import create_client
@@ -27,6 +29,7 @@ EXA_API_KEY = os.getenv("EXA_API_KEY", "")
 SERPER_API_KEY = os.getenv("SERPER_API_KEY", "")
 MODEL = os.getenv("MODEL_FACTCHECKER", "nemotron-3-super:cloud")
 BATCH_SIZE = int(os.getenv("FACTCHECKER_BATCH_SIZE", "10"))
+MAX_EVENT_AGE_DAYS = int(os.getenv("MAX_EVENT_AGE_DAYS", "7"))
 
 
 # ── Tool: Web Search multi-provider ─────────────────────────────────────
@@ -84,6 +87,7 @@ def _web_search(query: str) -> dict:
                     "search_depth": "basic",
                     "max_results": 7,
                     "include_answer": False,
+                    "days": 30,  # apenas resultados dos últimos 30 dias
                 },
                 timeout=12,
             )
@@ -213,8 +217,10 @@ def _check_item(item: dict) -> dict:
     metadata = item.get("metadata") or {}
     is_dossie = metadata.get("source_agent") == "dossie"
     n_searches = 3 if is_dossie else 1
+    hoje = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
     system = f"""És um fact-checker jornalístico rigoroso. A tua missão é verificar factos com pesquisa real.
+Hoje é {hoje}.
 
 REGRAS FUNDAMENTAIS:
 1. Bias NÃO é medido por linguagem forte. É medido por suporte factual.
@@ -225,7 +231,11 @@ REGRAS FUNDAMENTAIS:
 3. Procura sempre fontes primárias: relatórios oficiais, dados governamentais, ONG credenciadas (HRW, Amnesty, FATF, UN, bancos centrais).
 4. Uma notícia que a imprensa mainstream ignora NÃO é falsa por isso. Verifica com fontes primárias.
 5. Se o resultado da pesquisa vier de provider "serper_google", lê o campo "warning" e aplica o aviso — desvaloriza media mainstream.
-6. Responde sempre em JSON válido no final."""
+6. DATAS DAS FONTES — CRÍTICO: Inclui em "fontes_encontradas" APENAS URLs que cobrem o evento ACTUAL.
+   - Um artigo da BBC de 2022 sobre "Zelenskyy no Parlamento" NÃO verifica um evento de {hoje}.
+   - Se encontrares cobertura de evento semanticamente similar mas de outro ano, IGNORA essa fonte.
+   - Inclui SEMPRE o ano de {hoje[:4]} nas tuas queries de pesquisa para forçar resultados recentes.
+7. Responde sempre em JSON válido no final."""
 
     user = f"""Verifica este artigo com pesquisa real:
 
@@ -270,16 +280,105 @@ PROCESSO:
     return {"aprovado": False, "certainty_score": 0.0, "notas": "Falha a parsear resposta"}
 
 
+def _extract_year_from_url(url: str) -> int | None:
+    """Extrai o ano de publicação de um URL se estiver embutido no path."""
+    patterns = [
+        r"/(\d{4})/\d{2}/\d{2}/",   # /YYYY/MM/DD/
+        r"/(\d{4})/\d{2}/",          # /YYYY/MM/
+        r"/(\d{4})/[^/]",            # /YYYY/slug
+        r"-(\d{4})\d{4}",            # -YYYYMMDD
+        r"_(\d{4})\d{4}",            # _YYYYMMDD
+    ]
+    for pat in patterns:
+        m = re.search(pat, url)
+        if m:
+            year = int(m.group(1))
+            if 2000 <= year <= 2100:
+                return year
+    return None
+
+
+def _filter_stale_sources(
+    fontes: list[str], data_real_str: str | None
+) -> tuple[list[str], list[str]]:
+    """Remove fontes cujo URL contém um ano diferente do evento.
+
+    Retorna (fontes_válidas, fontes_rejeitadas).
+    """
+    if not data_real_str or len(str(data_real_str)) < 4:
+        return fontes, []
+    try:
+        evento_year = int(str(data_real_str)[:4])
+    except ValueError:
+        return fontes, []
+
+    validas: list[str] = []
+    rejeitadas: list[str] = []
+    for url in fontes:
+        url_year = _extract_year_from_url(url)
+        if url_year is not None and url_year != evento_year:
+            rejeitadas.append(url)
+            logger.warning(
+                "Fonte rejeitada (ano URL %d ≠ evento %d): %s",
+                url_year, evento_year, url,
+            )
+        else:
+            validas.append(url)
+    return validas, rejeitadas
+
+
+def _event_is_stale(data_real_str: str | None) -> tuple[bool, str]:
+    """Verifica deterministicamente se o evento é demasiado antigo."""
+    if not data_real_str or len(str(data_real_str)) < 10:
+        return False, ""
+    try:
+        evento_date = datetime.strptime(str(data_real_str)[:10], "%Y-%m-%d").date()
+        cutoff = datetime.now(timezone.utc).date() - timedelta(days=MAX_EVENT_AGE_DAYS)
+        if evento_date < cutoff:
+            return True, f"stale_event: data real do evento é {data_real_str} (>{MAX_EVENT_AGE_DAYS} dias)"
+    except ValueError:
+        pass
+    return False, ""
+
+
 def _apply_verdict(supabase, item: dict, verdict: dict):
     certainty = float(verdict.get("certainty_score", 0.0))
     bias = float(verdict.get("bias_score", 0.5))
+    data_real = verdict.get("data_real_evento")
+
+    # ── Check determinístico de frescura com a data confirmada pelo fact-checker ──
+    stale, motivo_stale = _event_is_stale(data_real)
+    if stale:
+        supabase.table("intake_queue").update({
+            "status": "fact_check",
+            "error_message": motivo_stale,
+            "fact_check_summary": {
+                "certainty_score": 0.0,
+                "veracidade": "stale",
+                "data_real_evento": data_real,
+                "notas": motivo_stale,
+            },
+        }).eq("id", item["id"]).execute()
+        logger.warning("Fact-checker: STALE '%s' — %s", item.get("title", "")[:50], motivo_stale)
+        return
+
     aprovado = verdict.get("aprovado", False) and certainty >= 0.70
+
+    # ── Filtrar fontes com ano errado no URL ──────────────────────────────
+    fontes_raw = verdict.get("fontes_encontradas", [])
+    fontes_validas, fontes_rejeitadas = _filter_stale_sources(fontes_raw, data_real)
+    if fontes_rejeitadas:
+        logger.warning(
+            "Fact-checker: %d fonte(s) rejeitada(s) por ano incorreto: %s",
+            len(fontes_rejeitadas), fontes_rejeitadas,
+        )
 
     fact_check_summary = {
         "certainty_score": certainty,
         "veracidade": verdict.get("veracidade", ""),
-        "fontes_encontradas": verdict.get("fontes_encontradas", []),
-        "data_real_evento": verdict.get("data_real_evento"),
+        "fontes_encontradas": fontes_validas,
+        "fontes_rejeitadas_ano": fontes_rejeitadas,
+        "data_real_evento": data_real,
         "notas": verdict.get("notas", ""),
     }
 
@@ -302,11 +401,12 @@ def _apply_verdict(supabase, item: dict, verdict: dict):
     supabase.table("intake_queue").update(update).eq("id", item["id"]).execute()
 
     logger.info(
-        "Fact-checker: '%s' → %s (cert=%.2f, bias=%.2f)",
+        "Fact-checker: '%s' → %s (cert=%.2f, bias=%.2f, data=%s)",
         item.get("title", "")[:50],
         "APROVADO" if aprovado else "REJEITADO",
         certainty,
         bias,
+        data_real or "desconhecida",
     )
 
 
