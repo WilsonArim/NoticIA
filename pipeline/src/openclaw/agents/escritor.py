@@ -186,7 +186,7 @@ def _publicar_artigo(supabase, item: dict, artigo: dict):
         "intake_queue_id": item["id"],
     }
 
-    result = supabase.rpc("publish_article_with_sources", {"payload": json.dumps(payload)}).execute()
+    result = supabase.rpc("publish_article_with_sources", {"payload": payload}).execute()
 
     if result.data and result.data.get("success"):
         logger.info(
