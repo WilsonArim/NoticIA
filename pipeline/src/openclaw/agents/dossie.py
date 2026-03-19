@@ -1,11 +1,19 @@
 """
-Agente Dossiê — Nemotron 3 Super (120B, tool calling nativo)
-Monitora activamente temas definidos pelo utilizador.
-Foca-se em notícias que a imprensa mainstream silencia ou minimiza.
-Pesquisa fontes primárias: relatórios oficiais, dados reais, ONG.
-Insere na intake_queue com tag 'dossie' e prioridade alta.
+⚠️  DEPRECATED 2026-03-19 — NÃO USAR
 
-Usa 3 pesquisas dirigidas por tema para cobertura máxima.
+Substituído pela Equipa de Investigação Elite:
+  - reporter-investigacao  → deep-dives, WebSearch forense, fontes confidenciais
+  - fc-forense             → verificação forense independente
+  - publisher-elite        → publicação on-demand com aprovação de Wilson
+
+Motivo da deprecação:
+  - Watchlist hardcoded sem raciocínio contextual
+  - Sem aprovação humana antes de publicar
+  - Pesquisa não-forense substituída por raciocínio profundo LLM
+  - Equipa Elite cobre os mesmos temas com qualidade investigativa superior
+
+Este ficheiro mantido apenas para referência histórica.
+NÃO é importado nem executado pelo scheduler_ollama.py.
 """
 import os
 import json
