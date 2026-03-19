@@ -1,5 +1,5 @@
 # Invalid Telegram channels — auto-detected
-# 36 channels | Last updated: 2026-03-17 22:41 UTC
+# 36 channels | Last updated: 2026-03-19 15:21 UTC
 # Format: handle<TAB>reason
 
 AlarabiyaEng	UsernameInvalidError
