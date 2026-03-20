@@ -10,10 +10,15 @@ Fluxo do pipeline:
   raw_events
     → [dispatcher]     cada 5 min   — classificação semântica LLM, routing para reporters
     → intake_queue (status='auditor_approved')
-    → [fact_checker]   cada 25 min  — web search + verificação factual (Nemotron 3 Super)
+    → [fact_checker]   cada 25 min  — web search + verificação factual
     → intake_queue (status='approved')
-    → [escritor]       cada 30 min  — escrita PT-PT (Nemotron 3 Super)
+    → [escritor]       cada 30 min  — escrita PT-PT
     → articles (status='published')
+
+Fonte de verdade dos modelos: .env
+  O .env é a única fonte de verdade. No arranque, sync_models_to_supabase()
+  propaga automaticamente os modelos para o Supabase (adapter_config.model),
+  mantendo o Paperclip UI sempre em sync sem intervenção manual.
 """
 import logging
 import os
@@ -39,6 +44,67 @@ logging.basicConfig(
     format="%(asctime)s %(name)s %(levelname)s %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+
+def sync_models_to_supabase() -> None:
+    """Propaga os modelos do .env para adapter_config.model no Supabase.
+
+    O .env é a única fonte de verdade. Esta função garante que o Paperclip UI
+    reflecte sempre os modelos activos, sem intervenção manual.
+
+    Mapeamento role → variável de ambiente:
+      dispatcher   → MODEL_DISPATCHER
+      fact_checker → MODEL_FACTCHECKER
+      reporter     → MODEL_FACTCHECKER  (mesmo modelo — raciocínio profundo)
+      auditor      → MODEL_AUDITOR
+      writer       → MODEL_ESCRITOR
+      editor       → MODEL_EDITOR_CHEFE
+      columnist    → MODEL_CRONISTAS
+      ceo          → MODEL_EDITOR_CHEFE
+      engineer     → MODEL_ESCRITOR
+      hr           → MODEL_ESCRITOR
+      publisher    → MODEL_DISPATCHER   (leve, sem raciocínio editorial)
+      collector    → (sem LLM, ignorado)
+    """
+    supabase_url = os.getenv("SUPABASE_URL", "")
+    supabase_key = os.getenv("SUPABASE_SERVICE_KEY", "")
+    if not supabase_url or not supabase_key:
+        logger.warning("sync_models: SUPABASE_URL ou SUPABASE_SERVICE_KEY em falta — a saltar sync")
+        return
+
+    role_to_model: dict[str, str | None] = {
+        "dispatcher":   os.getenv("MODEL_DISPATCHER",  "gpt-oss:20b"),
+        "fact_checker": os.getenv("MODEL_FACTCHECKER", "deepseek-v3.2"),
+        "reporter":     os.getenv("MODEL_FACTCHECKER", "deepseek-v3.2"),
+        "auditor":      os.getenv("MODEL_AUDITOR",     "deepseek-v3.2"),
+        "writer":       os.getenv("MODEL_ESCRITOR",    "deepseek-v3.2"),
+        "editor":       os.getenv("MODEL_EDITOR_CHEFE","deepseek-v3.2"),
+        "columnist":    os.getenv("MODEL_CRONISTAS",   "deepseek-v3.2"),
+        "ceo":          os.getenv("MODEL_EDITOR_CHEFE","deepseek-v3.2"),
+        "engineer":     os.getenv("MODEL_ESCRITOR",    "deepseek-v3.2"),
+        "hr":           os.getenv("MODEL_ESCRITOR",    "deepseek-v3.2"),
+        "publisher":    os.getenv("MODEL_DISPATCHER",  "gpt-oss:20b"),
+        "collector":    None,  # sem LLM
+    }
+
+    try:
+        from supabase import create_client
+        sb = create_client(supabase_url, supabase_key)
+        agents = sb.table("agents").select("id,name,role,adapter_config").execute()
+        updated = 0
+        for a in agents.data:
+            role = a.get("role", "")
+            model = role_to_model.get(role)
+            if model is None:
+                continue
+            cfg = a.get("adapter_config") or {}
+            if cfg.get("model") != model:
+                cfg["model"] = model
+                sb.table("agents").update({"adapter_config": cfg}).eq("id", a["id"]).execute()
+                updated += 1
+        logger.info("sync_models: %d/%d agentes sincronizados no Supabase", updated, len(agents.data))
+    except Exception as exc:
+        logger.warning("sync_models: erro ao sincronizar — %s", exc)
 
 scheduler = BackgroundScheduler(job_defaults={"misfire_grace_time": 120})
 
@@ -82,6 +148,10 @@ if __name__ == "__main__":
     logger.info("Modelo Dispatcher:    %s", os.getenv("MODEL_DISPATCHER", "n/a"))
     logger.info("Modelo Editorial:     %s", os.getenv("MODEL_FACTCHECKER", "n/a"))
     logger.info("=" * 60)
+
+    # Sincronizar modelos do .env → Supabase (fonte de verdade única)
+    logger.info("Sincronizando modelos .env → Supabase...")
+    sync_models_to_supabase()
 
     # Arrancar agentes iniciais antes do scheduler (warm-up)
     logger.info("Warm-up: dispatcher (primeiro batch de raw_events)...")
