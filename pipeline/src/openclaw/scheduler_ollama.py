@@ -78,8 +78,8 @@ scheduler.add_job(
 if __name__ == "__main__":
     logger.info("=" * 60)
     logger.info("OpenClaw Pipeline — Iniciando (Oracle VM)")
-    logger.info("Modelo Dispatcher:    %s", "nvidia/nemotron-nano-30b-instruct:free")
-    logger.info("Modelo Editorial:     %s", "nvidia/nemotron-3-super-120b-a12b:free")
+    logger.info("Modelo Dispatcher:    %s", "gpt-oss:20b-cloud (Ollama Cloud)")
+    logger.info("Modelo Editorial:     %s", "nemotron-3-super:cloud (Ollama Cloud)")
     logger.info("=" * 60)
 
     # Arrancar agentes iniciais antes do scheduler (warm-up)

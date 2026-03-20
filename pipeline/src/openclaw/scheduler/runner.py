@@ -7,7 +7,7 @@ from pathlib import Path
 # Ensure pipeline root is in path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from openclaw.scheduler_ollama import scheduler, run_triagem, run_dossie
+from openclaw.scheduler_ollama import scheduler
 
 logger = logging.getLogger(__name__)
 

@@ -437,13 +437,13 @@ Deno.serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const publishApiKey = Deno.env.get("PUBLISH_API_KEY");
-    const xaiApiKey = Deno.env.get("XAI_API_KEY");
+    const ollamaApiKey = Deno.env.get("OLLAMA_API_KEY");
 
     if (!supabaseUrl || !serviceRoleKey || !publishApiKey) {
       return jsonResponse({ error: "Missing env vars" }, 500, req);
     }
-    if (!xaiApiKey) {
-      return jsonResponse({ error: "XAI_API_KEY not set" }, 500, req);
+    if (!ollamaApiKey) {
+      return jsonResponse({ error: "OLLAMA_API_KEY not set" }, 500, req);
     }
 
     const authHeader = req.headers.get("authorization") || "";
@@ -483,7 +483,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Limit to 2 cronistas per invocation (Grok calls take ~30-40s each)
+    // Limit to 2 cronistas per invocation (~30-60s each on Ollama Cloud)
     const MAX_PER_CALL = 2;
     const batch = cronistasToRun.slice(0, MAX_PER_CALL);
 
@@ -535,23 +535,23 @@ Deno.serve(async (req: Request) => {
           periodEndStr
         );
 
-        // Step 3: Call Grok to generate chronicle
-        const LLM_TIMEOUT_MS = 30_000;
+        // Step 3: Call Ollama Cloud to generate chronicle
+        const LLM_TIMEOUT_MS = 60_000;
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
 
-        let grokResp: Response;
+        let llmResp: Response;
         try {
-          grokResp = await fetch(
-            "https://api.x.ai/v1/chat/completions",
+          llmResp = await fetch(
+            "https://ollama.com/v1/chat/completions",
             {
               method: "POST",
               headers: {
-                Authorization: `Bearer ${xaiApiKey}`,
+                Authorization: `Bearer ${ollamaApiKey}`,
                 "Content-Type": "application/json",
               },
               body: JSON.stringify({
-                model: "grok-3-fast",
+                model: "nemotron-3-super:cloud",
                 messages: [
                   { role: "system", content: cronista.systemPrompt },
                   { role: "user", content: briefing },
@@ -566,22 +566,22 @@ Deno.serve(async (req: Request) => {
         } catch (fetchErr) {
           clearTimeout(timeout);
           if (fetchErr instanceof DOMException && fetchErr.name === "AbortError") {
-            console.error("[cronista] LLM request timed out after 30s");
+            console.error("[cronista] LLM request timed out after 60s");
             return jsonResponse({ error: "LLM request timed out" }, 504, req);
           }
           throw fetchErr;
         }
 
-        if (!grokResp.ok) {
-          const errText = await grokResp.text();
+        if (!llmResp.ok) {
+          const errText = await llmResp.text();
           throw new Error(
-            `Grok ${grokResp.status}: ${errText.slice(0, 200)}`
+            `Ollama ${llmResp.status}: ${errText.slice(0, 200)}`
           );
         }
 
-        const grokData = await grokResp.json();
+        const llmData = await llmResp.json();
         const responseText =
-          grokData.choices?.[0]?.message?.content || "";
+          llmData.choices?.[0]?.message?.content || "";
 
         // Step 4: Parse JSON response
         let title = `${cronista.rubrica} — Semana ${periodStartStr}`;
@@ -622,12 +622,13 @@ Deno.serve(async (req: Request) => {
             period_end: periodEndStr,
             status: "draft",
             metadata: {
-              model: "grok-3-fast",
+              model: "nemotron-3-super:cloud",
+              provider: "ollama",
               articles_count: articlesList.length,
               period_days: periodDays,
               generated_at: new Date().toISOString(),
-              input_tokens: grokData.usage?.prompt_tokens || 0,
-              output_tokens: grokData.usage?.completion_tokens || 0,
+              input_tokens: llmData.usage?.prompt_tokens || 0,
+              output_tokens: llmData.usage?.completion_tokens || 0,
             },
           })
           .select("id")

@@ -38,11 +38,11 @@ logger = logging.getLogger(__name__)
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
 
-# MODEL_DISPATCHER pode ser sobreposto no .env — usa MODEL_TRIAGEM como fallback
-# (ambos devem apontar para Nano 30B via OpenRouter na config actual)
+# MODEL_DISPATCHER pode ser sobreposto no .env
+# Ollama Cloud: gpt-oss:20b-cloud (rápido, classificação semântica)
 MODEL = os.getenv(
     "MODEL_DISPATCHER",
-    os.getenv("MODEL_TRIAGEM", "nvidia/nemotron-nano-30b-instruct:free"),
+    os.getenv("MODEL_TRIAGEM", "gpt-oss:20b-cloud"),
 )
 
 BATCH_SIZE = int(os.getenv("DISPATCHER_BATCH_SIZE", "20"))
