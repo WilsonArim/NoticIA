@@ -14,13 +14,6 @@ Fluxo do pipeline:
     → intake_queue (status='approved')
     → [escritor]       cada 30 min  — escrita PT-PT (Nemotron 3 Super)
     → articles (status='published')
-    → [dossie]         cada 6h      — síntese temática, dossiês investigativos
-
-Nota sobre triagem.py:
-  A triagem está mantida no scheduler para processar items 'pending' que possam
-  ter chegado de outras fontes. Nos eventos processados pelo dispatcher, a triagem
-  é um no-op (o dispatcher insere directamente com status='auditor_approved').
-  A triagem será deprecated quando todo o pipeline estiver migrado.
 """
 import logging
 import time
@@ -32,7 +25,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from openclaw.agents.dispatcher import run_dispatcher
-from openclaw.agents.triagem import run_triagem
+# triagem.py DEPRECATED 2026-03-20 — pipeline totalmente migrado para dispatcher LLM.
+# O dispatcher insere directamente com status='auditor_approved', tornando a triagem
+# um no-op. intake_queue limpa. Triagem removida do scheduler.
 from openclaw.agents.fact_checker import run_fact_checker
 from openclaw.agents.escritor import run_escritor
 # dossie.py DEPRECATED 2026-03-19 — substituído pela Equipa de Investigação Elite
@@ -52,17 +47,6 @@ scheduler.add_job(
     run_dispatcher,
     IntervalTrigger(minutes=5),
     id="dispatcher",
-    max_instances=1,
-)
-
-# ── Camada 3 (legado) — Triagem (no-op para eventos do dispatcher) ────────────────
-# Mantida para processar items 'pending' que possam existir no queue.
-# Dispatcher insere com 'auditor_approved', por isso a triagem não toca nesses items.
-# TODO: deprecar quando todo o pipeline estiver migrado para o dispatcher.
-scheduler.add_job(
-    run_triagem,
-    IntervalTrigger(minutes=20),
-    id="triagem",
     max_instances=1,
 )
 
@@ -103,7 +87,7 @@ if __name__ == "__main__":
     run_dispatcher()
 
     scheduler.start()
-    logger.info("Scheduler activo. Jobs: dispatcher(5m) | triagem(20m, legado) | fact_checker(25m) | escritor(30m)")
+    logger.info("Scheduler activo. Jobs: dispatcher(5m) | fact_checker(25m) | escritor(30m)")
 
     try:
         while True:
