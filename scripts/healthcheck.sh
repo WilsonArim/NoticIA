@@ -1,0 +1,59 @@
+#!/bin/bash
+# NoticIA Healthcheck — sends Telegram alert if services are down
+# Run via crontab every 5 minutes: */5 * * * * /home/ubuntu/noticia/scripts/healthcheck.sh
+
+BOT_TOKEN="8657227084:AAEVyu8IJr4u7dV0oK7QnTeab-jMvuf5Bg0"
+CHAT_ID="1353134241"
+HOSTNAME=$(hostname)
+
+SERVICES=("noticia-pipeline" "noticia-telegram" "noticia-diretor-elite")
+FAILURES=()
+
+for svc in "${SERVICES[@]}"; do
+    if ! systemctl is-active --quiet "$svc"; then
+        FAILURES+=("$svc")
+    fi
+done
+
+# Check if pipeline had any log activity in the last hour
+LAST_LOG_AGE=$(journalctl -u noticia-pipeline --since "1 hour ago" --no-pager -q 2>/dev/null | wc -l)
+
+if [ ${#FAILURES[@]} -gt 0 ]; then
+    MSG="🔴 *ALERTA NoticIA* [${HOSTNAME}]
+
+Serviços DOWN:"
+    for f in "${FAILURES[@]}"; do
+        MSG="${MSG}
+• ${f}"
+    done
+    MSG="${MSG}
+
+Timestamp: $(date '+%Y-%m-%d %H:%M:%S UTC')"
+
+    curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+        -d chat_id="${CHAT_ID}" \
+        -d "text=${MSG}" \
+        -d parse_mode="Markdown" > /dev/null 2>&1
+fi
+
+# Only alert about silent pipeline during working hours (6-23 UTC)
+HOUR=$(date +%H)
+if [ "$LAST_LOG_AGE" -eq 0 ] && [ "$HOUR" -ge 6 ] && [ "$HOUR" -le 23 ]; then
+    # Use a lockfile to avoid spamming — only alert once per hour
+    LOCKFILE="/tmp/noticia-silent-alert.lock"
+    if [ ! -f "$LOCKFILE" ] || [ $(( $(date +%s) - $(stat -c %Y "$LOCKFILE" 2>/dev/null || echo 0) )) -gt 3600 ]; then
+        MSG="⚠️ *NoticIA Pipeline Silencioso*
+
+Nenhum log na última hora.
+Pipeline pode estar bloqueado.
+
+Timestamp: $(date '+%Y-%m-%d %H:%M:%S UTC')"
+
+        curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+            -d chat_id="${CHAT_ID}" \
+            -d "text=${MSG}" \
+            -d parse_mode="Markdown" > /dev/null 2>&1
+
+        touch "$LOCKFILE"
+    fi
+fi
