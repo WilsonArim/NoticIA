@@ -58,3 +58,7 @@ pipeline/**/*.pyc
 # audit docs (local only)
 NoticIA-Auditoria-Tecnica*.docx
 .claude/settings.local.json
+telegram-collector/.venv/
+pipeline/venv/
+*.pyc
+__pycache__/

@@ -9,9 +9,6 @@ from dataclasses import dataclass, field
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
 PUBLISH_API_KEY = os.getenv("PUBLISH_API_KEY", "")
-XAI_API_KEY = os.getenv("XAI_API_KEY", "")
-XAI_BASE_URL = "https://api.x.ai/v1"
-XAI_MODEL = "grok-4-1-fast-reasoning"
 EVENT_REGISTRY_API_KEY = os.getenv("EVENT_REGISTRY_API_KEY", "")
 ACLED_EMAIL = os.getenv("ACLED_EMAIL", "")
 ACLED_PASSWORD = os.getenv("ACLED_PASSWORD", "")
@@ -42,7 +39,8 @@ GDELT_QUERIES: dict[str, str] = {
     "science": "NASA OR ESA OR genome OR CRISPR OR discovery OR peer review OR particle physics",
     "financial_markets": "stock market OR Nasdaq OR bond yield OR forex OR commodities OR earnings",
     "society": "protest OR human rights OR refugee OR migration OR inequality OR censorship",
-    "sports": "FIFA OR UEFA OR Olympics OR doping OR World Cup OR corruption sport",
+    # "sports" — DESACTIVADO 2026-03-20 por instrução editorial
+    # "sports": "FIFA OR UEFA OR Olympics OR doping OR World Cup OR corruption sport",
     "intl_politics": "election OR regime change OR political crisis OR government collapse OR impeachment OR parliament",
     "diplomacy": "peace talks OR treaty OR ambassador OR diplomatic OR UN summit OR bilateral agreement",
     "defense_strategy": "defense budget OR arms deal OR military alliance OR naval exercise OR nuclear proliferation",
@@ -99,7 +97,6 @@ COLLECTOR_INTERVALS = {
 PIPELINE_INTERVALS = {"P1": 30, "P2": 180, "P3": 720}
 
 # --- FinOps ---
-XAI_PRICING = {"input_per_m": 5.0, "output_per_m": 15.0}  # USD
 
 
 @dataclass

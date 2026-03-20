@@ -26,6 +26,20 @@ CERTAINTY_THRESHOLD = float(os.getenv("ESCRITOR_CERTAINTY_THRESHOLD", "0.7"))
 def run_escritor():
     supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
+    # --- pipeline_runs logging: início ---
+    run_id = None
+    try:
+        run_row = supabase.table("pipeline_runs").insert({
+            "stage": "escritor",
+            "status": "running",
+            "started_at": datetime.now(timezone.utc).isoformat(),
+            "events_in": 0,
+            "events_out": 0,
+        }).execute()
+        run_id = run_row.data[0]["id"] if run_row.data else None
+    except Exception as e:
+        logger.warning("Escritor: falha ao criar pipeline_run: %s", e)
+
     result = (
         supabase.table("intake_queue")
         .select("*")
@@ -38,9 +52,19 @@ def run_escritor():
     items = result.data or []
     if not items:
         logger.info("Escritor: sem items aprovados")
+        if run_id:
+            try:
+                supabase.table("pipeline_runs").update({
+                    "status": "completed",
+                    "completed_at": datetime.now(timezone.utc).isoformat(),
+                    "events_in": 0, "events_out": 0,
+                }).eq("id", run_id).execute()
+            except Exception:
+                pass
         return
 
     logger.info("Escritor: escrevendo %d artigos com %s", len(items), MODEL)
+    published_count = 0
 
     for item in items:
         try:
@@ -57,6 +81,7 @@ def run_escritor():
 
             artigo = _escrever_artigo(item)
             _publicar_artigo(supabase, item, artigo)
+            published_count += 1
         except Exception as e:
             err_str = str(e)
             if "QUALITY_GATE" in err_str:
@@ -68,6 +93,18 @@ def run_escritor():
                 logger.warning("Escritor quality gate rejeitou '%s': %s", item.get("title", "")[:50], err_str[:100])
             else:
                 logger.error("Escritor erro item %s: %s", item["id"], e)
+
+    # --- pipeline_runs logging: fim ---
+    if run_id:
+        try:
+            supabase.table("pipeline_runs").update({
+                "status": "completed",
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+                "events_in": len(items),
+                "events_out": published_count,
+            }).eq("id", run_id).execute()
+        except Exception as e:
+            logger.warning("Escritor: falha ao actualizar pipeline_run: %s", e)
 
 
 def _event_is_stale(data_real_str: str | None) -> bool:

@@ -189,6 +189,20 @@ def _web_search(query: str) -> dict:
 def run_fact_checker():
     supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
+    # --- pipeline_runs logging: início ---
+    run_id = None
+    try:
+        run_row = supabase.table("pipeline_runs").insert({
+            "stage": "fact_checker",
+            "status": "running",
+            "started_at": datetime.now(timezone.utc).isoformat(),
+            "events_in": 0,
+            "events_out": 0,
+        }).execute()
+        run_id = run_row.data[0]["id"] if run_row.data else None
+    except Exception as e:
+        logger.warning("Fact-checker: falha ao criar pipeline_run: %s", e)
+
     result = (
         supabase.table("intake_queue")
         .select("*")
@@ -199,18 +213,59 @@ def run_fact_checker():
     )
 
     items = result.data or []
+
+    # Filtrar áreas desactivadas (desporto)
+    DISABLED_AREAS = {"desporto", "sports", "sport"}
+    filtered_items = []
+    for item in items:
+        area = (item.get("area") or "").lower()
+        if area in DISABLED_AREAS:
+            supabase.table("intake_queue").update({
+                "status": "fact_check",
+                "error_message": f"Área '{area}' desactivada editorialmente",
+            }).eq("id", item["id"]).execute()
+            logger.info("Fact-checker: REJEITADO (área desactivada) '%s'", item.get("title", "")[:50])
+            continue
+        filtered_items.append(item)
+    items = filtered_items
+
     if not items:
         logger.info("Fact-checker: sem items para verificar")
+        # --- pipeline_runs logging: fim (sem items) ---
+        if run_id:
+            try:
+                supabase.table("pipeline_runs").update({
+                    "status": "completed",
+                    "completed_at": datetime.now(timezone.utc).isoformat(),
+                    "events_in": 0, "events_out": 0,
+                }).eq("id", run_id).execute()
+            except Exception:
+                pass
         return
 
     logger.info("Fact-checker: verificando %d items com %s", len(items), MODEL)
+    approved_count = 0
 
     for item in items:
         try:
             verdict = _check_item(item)
             _apply_verdict(supabase, item, verdict)
+            if verdict.get("aprovado") and float(verdict.get("certainty_score", 0)) >= 0.70:
+                approved_count += 1
         except Exception as e:
             logger.error("Fact-checker erro item %s: %s", item["id"], e)
+
+    # --- pipeline_runs logging: fim ---
+    if run_id:
+        try:
+            supabase.table("pipeline_runs").update({
+                "status": "completed",
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+                "events_in": len(items),
+                "events_out": approved_count,
+            }).eq("id", run_id).execute()
+        except Exception as e:
+            logger.warning("Fact-checker: falha ao actualizar pipeline_run: %s", e)
 
 
 def _check_item(item: dict) -> dict:
