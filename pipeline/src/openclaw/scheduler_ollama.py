@@ -53,17 +53,17 @@ def sync_models_to_supabase() -> None:
     reflecte sempre os modelos activos, sem intervenção manual.
 
     Mapeamento role → variável de ambiente:
-      dispatcher   → MODEL_DISPATCHER
-      fact_checker → MODEL_FACTCHECKER
-      reporter     → MODEL_FACTCHECKER  (mesmo modelo — raciocínio profundo)
-      auditor      → MODEL_AUDITOR
-      writer       → MODEL_ESCRITOR
-      editor       → MODEL_EDITOR_CHEFE
-      columnist    → MODEL_CRONISTAS
-      ceo          → MODEL_EDITOR_CHEFE
-      engineer     → MODEL_ESCRITOR
-      hr           → MODEL_ESCRITOR
-      publisher    → MODEL_DISPATCHER   (leve, sem raciocínio editorial)
+      dispatcher   → MODEL_DISPATCHER   (gpt-oss:20b   — routing rápido)
+      reporter     → MODEL_REPORTER     (mistral-large-3:675b — PT-PT explícito)
+      fact_checker → MODEL_FACTCHECKER  (kimi-k2-thinking — verificação agentica)
+      auditor      → MODEL_AUDITOR      (cogito-2.1:671b — raciocínio crítico)
+      writer       → MODEL_ESCRITOR     (mistral-large-3:675b — escrita PT-PT)
+      editor       → MODEL_EDITOR_CHEFE (cogito-2.1:671b — julgamento editorial)
+      columnist    → MODEL_CRONISTAS    (gemma3:27b — escrita criativa/expressiva)
+      ceo          → MODEL_EDITOR_CHEFE (cogito-2.1:671b — decisão estratégica)
+      engineer     → MODEL_ENGINEER     (devstral-2:123b — código)
+      hr           → MODEL_EDITOR_CHEFE (cogito-2.1:671b — gestão)
+      publisher    → MODEL_DISPATCHER   (gpt-oss:20b — leve, sem raciocínio editorial)
       collector    → (sem LLM, ignorado)
     """
     supabase_url = os.getenv("SUPABASE_URL", "")
@@ -73,17 +73,17 @@ def sync_models_to_supabase() -> None:
         return
 
     role_to_model: dict[str, str | None] = {
-        "dispatcher":   os.getenv("MODEL_DISPATCHER",  "gpt-oss:20b"),
-        "fact_checker": os.getenv("MODEL_FACTCHECKER", "deepseek-v3.2"),
-        "reporter":     os.getenv("MODEL_FACTCHECKER", "deepseek-v3.2"),
-        "auditor":      os.getenv("MODEL_AUDITOR",     "deepseek-v3.2"),
-        "writer":       os.getenv("MODEL_ESCRITOR",    "deepseek-v3.2"),
-        "editor":       os.getenv("MODEL_EDITOR_CHEFE","deepseek-v3.2"),
-        "columnist":    os.getenv("MODEL_CRONISTAS",   "deepseek-v3.2"),
-        "ceo":          os.getenv("MODEL_EDITOR_CHEFE","deepseek-v3.2"),
-        "engineer":     os.getenv("MODEL_ESCRITOR",    "deepseek-v3.2"),
-        "hr":           os.getenv("MODEL_ESCRITOR",    "deepseek-v3.2"),
-        "publisher":    os.getenv("MODEL_DISPATCHER",  "gpt-oss:20b"),
+        "dispatcher":   os.getenv("MODEL_DISPATCHER",   "gpt-oss:20b"),
+        "reporter":     os.getenv("MODEL_REPORTER",     "mistral-large-3:675b"),
+        "fact_checker": os.getenv("MODEL_FACTCHECKER",  "kimi-k2-thinking"),
+        "auditor":      os.getenv("MODEL_AUDITOR",      "cogito-2.1:671b"),
+        "writer":       os.getenv("MODEL_ESCRITOR",     "mistral-large-3:675b"),
+        "editor":       os.getenv("MODEL_EDITOR_CHEFE", "cogito-2.1:671b"),
+        "columnist":    os.getenv("MODEL_CRONISTAS",    "gemma3:27b"),
+        "ceo":          os.getenv("MODEL_EDITOR_CHEFE", "cogito-2.1:671b"),
+        "engineer":     os.getenv("MODEL_ENGINEER",     "devstral-2:123b"),
+        "hr":           os.getenv("MODEL_EDITOR_CHEFE", "cogito-2.1:671b"),
+        "publisher":    os.getenv("MODEL_DISPATCHER",   "gpt-oss:20b"),
         "collector":    None,  # sem LLM
     }
 
