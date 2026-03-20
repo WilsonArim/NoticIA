@@ -1,119 +1,302 @@
-# Project Instructions — Curador de Noticias
-
-## OBRIGATORIO: Ler antes de qualquer tarefa
-
-**IMPORTANTE: Ler estes ficheiros no inicio de CADA conversa:**
-
-1. `ARCHITECTURE-MASTER.md` — Fonte de verdade do sistema: todos os ~45 agentes, pipeline, schema DB, estado atual, plano de construcao
-2. `SKILLS/claude.md` — Routing rules, phase classifier, and priority tiers
-3. `SKILLS/ARCHITECTURE.md` — Complete map of all skills and routing matrix
-
-**Ficheiros de referencia (ler quando relevante):**
-- `AGENT-PROFILES.md` — Personalidades detalhadas dos agentes editoriais (Auditor, Escritor, Editor-Chefe, 10 Cronistas) com referencias intelectuais, estilo de escrita e instrucoes de system prompt
-- `FACT-CHECKING.md` — Spec detalhada do modulo fact-check (6 checkers + Nemotron 3 Super)
-- `FONTES.md` — Inventario completo de fontes de dados (RSS, GDELT, X, Telegram, etc.)
-- `ROADMAP.md` — Plano de evolucao futura e API keys necessarias
-
----
-
-## Sobre o Projeto
-
-Sistema editorial autonomo ("redacao automatizada") que recolhe noticias de multiplas fontes globais, verifica factos com IA, escreve artigos em PT-PT, e publica com diferentes niveis de prioridade (P1 breaking, P2 importantes, P3 analise).
-
-**Componentes principais (~45 agentes):**
-- 7 Coletores (RSS, GDELT, X, Telegram, Event Registry, ACLED, Crawl4AI)
-- 1 Dispatcher (routing de eventos para reporters)
-- 20 Reporters Especialistas (fact-check forense + bias detection + filtro relevancia PT)
-- 3 Agentes Editoriais (Auditor "O Cetico", Escritor PT-PT, Editor-Chefe)
-- 3 Publishers (P1 cada 30min, P2 cada 3h, P3 2x/dia)
-- 10 Cronistas com personalidade/ideologia (analises semanais)
-- 4 Engenheiros (Frontend, Backend, UI, Chefe — monitorizacao + auto-correcao)
-
----
+# NoticIA — Project Instructions
 
 ## Skills System
 
 This project uses the SOTA Skills system for structured, phase-based development.
 
+**IMPORTANT: Read these files at the start of every conversation:**
+
+1. `SKILLS/claude.md` — Routing rules, phase classifier, and priority tiers
+2. `SKILLS/ARCHITECTURE.md` — Complete map of all skills and routing matrix
+
 **How it works:**
+
 - Phase 0 skills are ALWAYS active (planning, debugging, linting, git, kaizen)
 - Other skills are activated automatically based on the request type and keywords
 - See `SKILLS/claude.md` Section 3 (Router) for the full routing logic
+- **Profession skill `professions/news-curator/SKILL.md`** is ALWAYS active — this is a news curation project
 
 **Skill files location:** Each skill lives in `SKILLS/<skill-name>/SKILL.md`
 
 ---
 
-## Tech Stack
+## Project Overview
 
-- **Frontend:** Next.js 15 + TypeScript + Tailwind CSS
-- **Runtime:** Node.js
-- **Database:** Supabase (PostgreSQL) — projeto `ljozolszasxppianyaac`
-- **Edge Functions:** Supabase Edge Functions (Deno/TypeScript)
-- **Pipeline:** Python 3 + scheduler_ollama.py (Fly.io → Oracle Cloud)
-- **Orquestrador:** Paperclip (Node.js + React + PostgreSQL via Supabase)
-- **LLM Triagem:** DeepSeek V3.2 (:cloud)
-- **LLM Editorial:** Nemotron 3 Super (:cloud) — fact-check, dossiê, escritor
-- **Infra:** Oracle Cloud ARM (4 vCPUs, 24GB RAM) — em migração desde Fly.io
-- **Deploy:** Vercel (frontend) + Supabase (backend)
+**NoticIA** is an AI-powered Portuguese news curation pipeline that collects, classifies, fact-checks, and publishes news articles in PT-PT (European Portuguese). The system runs on an Oracle Cloud VM with 53 autonomous agents orchestrated through a multi-stage pipeline.
+
+### Mission
+Curate high-quality, fact-checked Portuguese news with minimal human intervention, maintaining journalistic standards and editorial quality through AI agents.
 
 ---
 
-## Code Style
+## Tech Stack
 
-- Use strict TypeScript (`strict: true`) para frontend e Edge Functions
-- Python com type hints para pipeline local
-- Follow ESLint rules defined in project config
-- Use conventional commits (see `SKILLS/commit/SKILL.md`)
-- Linguagem dos artigos: **PT-PT** (facto, equipa, telemóvel — nunca PT-BR)
+### Backend Pipeline (Python)
+- **Language:** Python 3.12
+- **Runtime:** CPython on Ubuntu 22.04 (Oracle Cloud ARM64)
+- **LLM Provider:** Ollama Pro API (OpenAI-compatible) — `https://ollama.com`
+- **Database:** Supabase (PostgreSQL + RLS + Edge Functions)
+- **Scheduler:** APScheduler (BackgroundScheduler)
+- **Web Search:** Tavily → Exa.ai → Serper.dev (fallback chain)
+- **Telegram:** Telethon (bot mode) + OpenAI client
+- **Package Manager:** pip + venv
+
+### Frontend (Next.js)
+- **Framework:** Next.js 15+ with TypeScript
+- **Styling:** Tailwind CSS + PostCSS
+- **Deployment:** Vercel
+- **Supabase Client:** @supabase/supabase-js
+
+### Infrastructure
+- **VM:** Oracle Cloud ARM64 (ubuntu@82.70.84.122)
+- **SSH Key:** `~/.ssh/oracle_noticia.key`
+- **Process Manager:** systemd (3 services)
+- **Supabase Project:** `ljozolszasxppianyaac`
+
+---
+
+## Models & Roles
+
+The `.env` is the **single source of truth** for model assignments. On startup, `sync_models_to_supabase()` propagates models to the `adapter_config.model` field in Supabase.
+
+| Role | Env Variable | Model | Purpose |
+|------|-------------|-------|---------|
+| dispatcher | `MODEL_DISPATCHER` | gpt-oss:20b | Fast routing, classification, batch scoring |
+| reporter | `MODEL_REPORTER` | mistral-large-3:675b | News reporting in PT-PT |
+| fact_checker | `MODEL_FACTCHECKER` | deepseek-v3.2 | Deep factual verification + web search |
+| auditor | `MODEL_AUDITOR` | cogito-2.1:671b | DEPRECATED — collapsed into dispatcher V2 quality gate |
+| writer | `MODEL_ESCRITOR` | mistral-large-3:675b | Article writing in PT-PT |
+| editor | `MODEL_EDITOR_CHEFE` | cogito-2.1:671b | Editorial judgment, final review |
+| columnist | `MODEL_CRONISTAS` | gemma3:27b | Creative/expressive writing |
+| ceo | `MODEL_EDITOR_CHEFE` | cogito-2.1:671b | Strategic decisions |
+| engineer | `MODEL_ENGINEER` | devstral-2:123b | Code generation/debugging |
+| publisher | `MODEL_DISPATCHER` | gpt-oss:20b | Lightweight publish actions |
+| collector | — | (no LLM) | Data collection only |
+
+### Specialty Models (auxiliary)
+| Env Variable | Model | Purpose |
+|-------------|-------|---------|
+| `MODEL_VISION` | nvidia/nemotron-nano-12b-v2-vl:free | Image analysis |
+| `MODEL_SAFETY` | nvidia/nemotron-content-safety-reasoning-4b | Content safety |
+| `MODEL_TRANSLATE` | nvidia/riva-translate-4b-instruct-v1_1 | Translation |
+| `MODEL_DOSSIE` | kimi-k2-thinking | Deep research/dossiers |
+
+---
+
+## Pipeline Architecture (V2)
+
+```
+raw_events (collectors: RSS, GDELT, ACLED, EventRegistry, Crawl4AI, Telegram)
+    │
+    ▼
+[Dispatcher V2]  every 5 min
+  ├── Dedup (title_hash MD5) ────────────── ~7% eliminated pre-LLM
+  ├── Deterministic filter ──────────────── ~60-70% eliminated pre-LLM
+  │   (domain blocklist, keyword blocklist, content length, staleness)
+  ├── Batch LLM classification ──────────── 10 events per call (~78% fewer tokens)
+  └── Quality gate (score 0-10, threshold 5.0) ── replaces auditor stage
+    │
+    ▼
+intake_queue (status='auditor_approved')
+    │
+    ▼
+[Fact-Checker]  every 25 min
+  └── Web search (Tavily→Exa→Serper) + factual verification
+    │
+    ▼
+intake_queue (status='approved')
+    │
+    ▼
+[Escritor]  every 30 min
+  └── Article writing in PT-PT + atomic publication
+    │
+    ▼
+articles (status='published')
+```
+
+### Systemd Services
+- `noticia-pipeline.service` — Main scheduler (dispatcher + fact-checker + escritor)
+- `noticia-telegram.service` — Telegram collector
+- `noticia-diretor-elite.service` — Diretor Elite Telegram bot (interactive)
 
 ---
 
 ## File Structure
 
 ```
-/ (raiz do projeto)
-├── ARCHITECTURE-MASTER.md    → FONTE DE VERDADE do sistema
-├── CLAUDE.md                 → Este ficheiro
-├── FACT-CHECKING.md          → Spec do fact-check
-├── FONTES.md                 → Inventario de fontes
-├── ROADMAP.md                → Plano futuro
-├── src/                      → Frontend Next.js
-│   ├── app/                  → Routes e pages
-│   ├── components/           → UI components
-│   ├── lib/                  → Supabase client, utilities
-│   └── types/                → TypeScript types
-├── pipeline/                 → Pipeline Python (agentes locais)
+~/noticia/
+├── CLAUDE.md                          → This file (project instructions)
+├── SKILLS/                            → SOTA Skills system (37 skills)
+│   ├── claude.md                      → Router configuration
+│   ├── ARCHITECTURE.md                → Skills map & routing matrix
+│   └── <skill-name>/SKILL.md          → Individual skill files
+│
+├── pipeline/                          → Python backend pipeline
+│   ├── .env                           → Single source of truth (models, keys)
+│   ├── venv/                          → Python virtual environment
 │   └── src/openclaw/
-│       ├── collectors/       → 7 coletores
-│       ├── reporters/        → 14 reporters (fact-check forense + bias detection)
-│       ├── curador/          → Dedup + filas de prioridade
-│       ├── editorial/        → Editor-Chefe + clientes DeepSeek/Nemotron
-│       ├── factcheck/        → 7 modulos de verificacao
-│       ├── output/           → Publisher para Supabase
-│       └── scheduler/        → APScheduler runner
+│       ├── agents/
+│       │   ├── dispatcher.py          → V2: dedup + filter + batch LLM + quality gate
+│       │   ├── fact_checker.py        → Web search + factual verification
+│       │   ├── escritor.py            → PT-PT article writer
+│       │   ├── ollama_client.py       → OpenAI-compatible Ollama Pro client
+│       │   ├── triagem.py             → DEPRECATED (replaced by dispatcher LLM)
+│       │   └── injetor.py             → Manual CLI injection tool
+│       ├── collectors/
+│       │   ├── base.py                → BaseCollector (abstract)
+│       │   ├── rss.py                 → RSS feed collector
+│       │   ├── gdelt.py               → GDELT news collector
+│       │   ├── acled.py               → ACLED conflict data
+│       │   ├── event_registry.py      → EventRegistry API
+│       │   ├── crawl4ai_collector.py  → Web crawler collector
+│       │   └── telegram_collector.py  → Telegram channel collector
+│       ├── output/
+│       │   └── supabase_intake.py     → Supabase intake queue writer
+│       ├── scheduler/
+│       │   └── runner.py              → Scheduler runner
+│       ├── models.py                  → RawEvent dataclass (event_hash = sha256(url:source))
+│       ├── config.py                  → Configuration
+│       ├── scheduler_ollama.py        → V2 scheduler (APScheduler)
+│       └── tests/                     → Test suite
+│
+├── telegram-bot/                      → Diretor Elite Telegram bot
+│   ├── bot.py                         → Telethon bot + OpenAI/Ollama client
+│   ├── .env                           → Bot-specific config
+│   └── .venv/                         → Bot virtual environment
+│
+├── telegram-collector/                → Telegram source collector
+│
+├── src/                               → Next.js frontend
+│   ├── lib/supabase/                  → Supabase client, types, middleware
+│   ├── lib/utils/                     → Utility functions
+│   ├── lib/constants/                 → Categories, etc.
+│   └── components/                    → React components (ArticleCard, etc.)
+│
 ├── supabase/
-│   └── functions/            → 20 Edge Functions deployed
-├── SKILLS/                   → SOTA Skills system (37 skills)
-└── archive/                  → Docs historicos (nao usar como referencia)
+│   ├── functions/                     → Edge Functions
+│   └── migrations/                    → SQL migrations
+│
+├── public/                            → Static assets
+├── docs/                              → Documentation
+├── PROMPTS/                           → Agent prompt templates
+└── archive/                           → Archived code/configs
 ```
+
+---
+
+## Database Schema (Supabase)
+
+### Core Tables
+| Table | Purpose | Key Columns |
+|-------|---------|-------------|
+| `raw_events` | Incoming events from collectors | `id`, `title`, `url`, `content`, `source_collector`, `processed`, `published_at`, `event_hash`, `title_hash` |
+| `intake_queue` | Events pending editorial pipeline | `id`, `title`, `content`, `categories`, `priority`, `relevance_score`, `status`, `title_hash` |
+| `articles` | Published articles | `id`, `title`, `body`, `sources`, `status`, `fact_check_score` |
+| `agents` | 53 agent definitions | `id`, `name`, `role`, `adapter_config`, `status` |
+| `pipeline_runs` | Pipeline execution logs | `id`, `agent_id`, `started_at`, `finished_at`, `status`, `metadata` |
+
+### Dedup Strategy
+- `event_hash` = `sha256(url + ":" + source_collector)` — dedup by URL in raw_events
+- `title_hash` = `md5(lower(trim(regexp_replace(title, '\s+', ' ', 'g'))))` — dedup by normalized title across raw_events and intake_queue
+
+### Key Indexes
+```sql
+idx_raw_events_title_hash ON raw_events(title_hash)
+idx_raw_events_unprocessed_recent ON raw_events(processed, published_at DESC) WHERE processed = false
+idx_intake_queue_title_hash ON intake_queue(title_hash)
+```
+
+---
+
+## Code Style & Conventions
+
+### Python (Pipeline)
+- Python 3.12+ with type hints everywhere
+- Docstrings: Google style (module, class, function)
+- Logging: `logging` module with `%(asctime)s %(name)s %(levelname)s %(message)s`
+- Error handling: Never crash the scheduler — catch exceptions per-job, log, retry next cycle
+- Environment: All secrets and config in `.env`, loaded via `python-dotenv`
+- Imports: stdlib → third-party → local (separated by blank lines)
+- No hardcoded URLs, keys, or model names — always from `.env`
+
+### TypeScript (Frontend)
+- Strict TypeScript (`strict: true`)
+- Follow ESLint config in project root
+- React server components by default (Next.js 15+)
+- Tailwind CSS for styling
+
+### Language Rules (PT-PT)
+- All article output MUST be in European Portuguese (PT-PT), never Brazilian Portuguese
+- Use: "facto" not "fato", "equipa" not "time", "telemóvel" not "celular"
+- Formal register for news articles
+- Agent names and logs can be in Portuguese or English (consistency within each file)
 
 ---
 
 ## Git Workflow
 
 - Branch from `main`
-- Branch naming: `type/short-description` (e.g., `feat/user-auth`)
+- Branch naming: `type/short-description` (e.g., `feat/dispatcher-v2`, `fix/dedup-bug`)
+- Conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`, `perf:`, `test:`
 - PR required for merge to `main`
 - All tests must pass before merge
+- **CRITICAL:** Never commit `.env` files or API keys
 
 ---
 
-## REGRAS IMPORTANTES
+## SSH & Deployment
 
-1. **NUNCA usar ficheiros de `/archive/`** como referencia — estao obsoletos
-2. **Sempre consultar `ARCHITECTURE-MASTER.md`** para entender o estado atual do sistema
-3. **Artigos em PT-PT** — nunca PT-BR (ex: "facto" nao "fato", "equipa" nao "time")
-4. **Supabase project ID:** `ljozolszasxppianyaac`
-5. **LLMs activos:** DeepSeek V3.2 (triagem) + Nemotron 3 Super (fact-check, dossie, escritor). Grok API ELIMINADA.
-6. **Infra pipeline:** Oracle Cloud ARM (em migracao desde Fly.io). Paperclip como orquestrador.
+### Connecting to VM
+```bash
+ssh -i ~/.ssh/oracle_noticia.key ubuntu@82.70.84.122
+```
+
+### Managing Services
+```bash
+sudo systemctl status noticia-pipeline
+sudo systemctl restart noticia-pipeline
+sudo journalctl -u noticia-pipeline -f --no-pager -n 50
+```
+
+### Pipeline Activation
+```bash
+cd ~/noticia/pipeline && source venv/bin/activate
+python -m openclaw.scheduler_ollama
+```
+
+### Deploying Changes
+1. SSH into VM
+2. `cd ~/noticia && git pull` (or scp files directly)
+3. For pipeline: `sudo systemctl restart noticia-pipeline`
+4. For telegram-bot: `sudo systemctl restart noticia-diretor-elite`
+5. Verify logs: `sudo journalctl -u <service> -f`
+
+---
+
+## Key Design Decisions
+
+1. **Batch LLM over individual calls** — 10 events per LLM call reduces tokens by ~78%
+2. **Deterministic pre-filtering** — Domain/keyword blocklists eliminate ~60-70% without LLM
+3. **Title hash dedup** — MD5 of normalized title catches near-duplicates across sources
+4. **Quality gate in dispatcher** — Score 0-10 replaces separate auditor stage
+5. **Events retry on LLM failure** — Only mark `processed=True` after successful LLM classification
+6. **Fallback web search chain** — Tavily → Exa.ai → Serper.dev ensures fact-checking always has a search provider
+7. **`.env` as single source of truth** — `sync_models_to_supabase()` propagates to agents table on startup
+8. **Atomic article publication** — `publish_article_with_sources` RPC ensures consistency
+
+---
+
+## Known Issues & Technical Debt
+
+- [ ] No automated tests (test suite exists but is empty)
+- [ ] No CI/CD pipeline (manual deploys via SSH)
+- [ ] No monitoring/alerting (relies on manual log checks)
+- [ ] No backup strategy for Supabase data
+- [ ] No swap configured on Oracle VM
+- [ ] Fail2Ban installed but inactive
+- [ ] `triagem.py` is deprecated but still in codebase
+- [ ] Frontend and pipeline share the same repo (monorepo without proper tooling)
+
+---
+
+*This file is read automatically by Claude. Update it when the project architecture changes.*

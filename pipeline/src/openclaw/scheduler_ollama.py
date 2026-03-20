@@ -1,19 +1,25 @@
 """
-Scheduler principal — OpenClaw Pipeline (Oracle VM)
+Scheduler principal — OpenClaw Pipeline V2 (Oracle VM)
 Corre todos os agentes LLM nos intervalos correctos.
 
 Uso:
-  cd pipeline && source .venv/bin/activate
+  cd pipeline && source venv/bin/activate
   python -m openclaw.scheduler_ollama
 
-Fluxo do pipeline:
+Fluxo do pipeline V2 (optimizado):
   raw_events
-    → [dispatcher]     cada 5 min   — classificação semântica LLM, routing para reporters
+    → [dispatcher V2]  cada 5 min   — dedup + filtro + batch LLM + quality gate
     → intake_queue (status='auditor_approved')
     → [fact_checker]   cada 25 min  — web search + verificação factual
     → intake_queue (status='approved')
     → [escritor]       cada 30 min  — escrita PT-PT
     → articles (status='published')
+
+Optimizações V2 vs V1:
+  - Dedup pré-LLM: ~7% chamadas eliminadas
+  - Filtro determinístico: ~60-70% chamadas eliminadas
+  - Batching: 10 eventos por chamada LLM (~78% menos tokens)
+  - Quality gate no dispatcher: elimina stage auditor separado
 
 Fonte de verdade dos modelos: .env
   O .env é a única fonte de verdade. No arranque, sync_models_to_supabase()
@@ -30,14 +36,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# V2: dispatcher com dedup + filtro + batching + quality gate
 from openclaw.agents.dispatcher import run_dispatcher
-# triagem.py DEPRECATED 2026-03-20 — pipeline totalmente migrado para dispatcher LLM.
-# O dispatcher insere directamente com status='auditor_approved', tornando a triagem
-# um no-op. intake_queue limpa. Triagem removida do scheduler.
 from openclaw.agents.fact_checker import run_fact_checker
 from openclaw.agents.escritor import run_escritor
-# dossie.py DEPRECATED 2026-03-19 — substituído pela Equipa de Investigação Elite
-# (reporter-investigacao + fc-forense + publisher-elite, aprovação humana de Wilson)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -55,8 +57,8 @@ def sync_models_to_supabase() -> None:
     Mapeamento role → variável de ambiente:
       dispatcher   → MODEL_DISPATCHER   (gpt-oss:20b   — routing rápido)
       reporter     → MODEL_REPORTER     (mistral-large-3:675b — PT-PT explícito)
-      fact_checker → MODEL_FACTCHECKER  (kimi-k2-thinking — verificação agentica)
-      auditor      → MODEL_AUDITOR      (cogito-2.1:671b — raciocínio crítico)
+      fact_checker → MODEL_FACTCHECKER  (deepseek-v3.2 — verificação profunda)
+      auditor      → MODEL_AUDITOR      (cogito-2.1:671b — DEPRECATED: colapsado no dispatcher V2)
       writer       → MODEL_ESCRITOR     (mistral-large-3:675b — escrita PT-PT)
       editor       → MODEL_EDITOR_CHEFE (cogito-2.1:671b — julgamento editorial)
       columnist    → MODEL_CRONISTAS    (gemma3:27b — escrita criativa/expressiva)
@@ -75,7 +77,7 @@ def sync_models_to_supabase() -> None:
     role_to_model: dict[str, str | None] = {
         "dispatcher":   os.getenv("MODEL_DISPATCHER",   "gpt-oss:20b"),
         "reporter":     os.getenv("MODEL_REPORTER",     "mistral-large-3:675b"),
-        "fact_checker": os.getenv("MODEL_FACTCHECKER",  "kimi-k2-thinking"),
+        "fact_checker": os.getenv("MODEL_FACTCHECKER",  "deepseek-v3.2"),
         "auditor":      os.getenv("MODEL_AUDITOR",      "cogito-2.1:671b"),
         "writer":       os.getenv("MODEL_ESCRITOR",     "mistral-large-3:675b"),
         "editor":       os.getenv("MODEL_EDITOR_CHEFE", "cogito-2.1:671b"),
@@ -108,8 +110,8 @@ def sync_models_to_supabase() -> None:
 
 scheduler = BackgroundScheduler(job_defaults={"misfire_grace_time": 120})
 
-# ── Camada 2 — Dispatcher LLM (substitui bridge.py + triagem para novos eventos) ──
-# Cada 5 min: lê raw_events, raciocina semanticamente, faz routing para reporters
+# ── Camada 2 — Dispatcher V2 (dedup + filtro + batch LLM + quality gate) ──
+# Cada 5 min: lê raw_events, filtra sem LLM, classifica em batch
 scheduler.add_job(
     run_dispatcher,
     IntervalTrigger(minutes=5),
@@ -117,7 +119,7 @@ scheduler.add_job(
     max_instances=1,
 )
 
-# ── Camada 3 — Fact-Checker (Nemotron 3 Super + web search) ──────────────────────
+# ── Camada 3 — Fact-Checker (deepseek-v3.2 + web search) ────────────────
 # Cada 25 min: lê 'auditor_approved', verifica factos com pesquisa real
 scheduler.add_job(
     run_fact_checker,
@@ -126,7 +128,7 @@ scheduler.add_job(
     max_instances=1,
 )
 
-# ── Camada 4 — Escritor (Nemotron 3 Super) ───────────────────────────────────────
+# ── Camada 4 — Escritor (mistral-large-3:675b) ──────────────────────────
 # Cada 30 min: lê 'approved', escreve artigo em PT-PT, publica
 scheduler.add_job(
     run_escritor,
@@ -135,18 +137,15 @@ scheduler.add_job(
     max_instances=1,
 )
 
-# ── Dossiê — DEPRECATED 2026-03-19 ──────────────────────────────────────────────
-# Substituído pela Equipa de Investigação Elite (reporter-investigacao + fc-forense
-# + publisher-elite). A equipa elite raciocina profundamente, usa WebSearch forense
-# + Crawl4AI, e requer aprovação de Wilson antes de publicar.
-# NÃO reactivar. O agente dossie no Supabase está paused.
-
 
 if __name__ == "__main__":
     logger.info("=" * 60)
-    logger.info("OpenClaw Pipeline — Iniciando (Oracle VM)")
+    logger.info("OpenClaw Pipeline V2 — Iniciando (Oracle VM)")
     logger.info("Modelo Dispatcher:    %s", os.getenv("MODEL_DISPATCHER", "n/a"))
-    logger.info("Modelo Editorial:     %s", os.getenv("MODEL_FACTCHECKER", "n/a"))
+    logger.info("Modelo Fact-Checker:  %s", os.getenv("MODEL_FACTCHECKER", "n/a"))
+    logger.info("Modelo Escritor:      %s", os.getenv("MODEL_ESCRITOR", "n/a"))
+    logger.info("Optimizações: dedup + filtro + batch(%s) + quality_gate",
+                os.getenv("DISPATCHER_LLM_BATCH_SIZE", "10"))
     logger.info("=" * 60)
 
     # Sincronizar modelos do .env → Supabase (fonte de verdade única)
@@ -154,7 +153,7 @@ if __name__ == "__main__":
     sync_models_to_supabase()
 
     # Arrancar agentes iniciais antes do scheduler (warm-up)
-    logger.info("Warm-up: dispatcher (primeiro batch de raw_events)...")
+    logger.info("Warm-up: dispatcher V2 (primeiro batch de raw_events)...")
     run_dispatcher()
 
     scheduler.start()

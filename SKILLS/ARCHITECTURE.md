@@ -1,17 +1,18 @@
-# ARCHITECTURE — Mapa de Skills, Fases & Routing
+# ARCHITECTURE — Mapa de Skills, Fases & Routing (NoticIA Edition)
 
 > Referencia completa de todas as skills, organizacao por fases, e matriz de routing.
+> Customizado para o projecto NoticIA — curadoria automatizada de noticias em PT-PT.
 
 ---
 
 ## Visao Geral
 
 ```
-Total de Skills: 37
+Total de Skills: 37 + 1 Profession
 Fases: 7 (0-6)
 Skills Fase 0 (sempre ativas): 8
 Skills sob demanda: 29
-Professions: extensivel (user-managed)
+Professions: 1 (news-curator — SEMPRE ATIVA)
 Workflows: 3
 ```
 
@@ -31,6 +32,12 @@ Workflows: 3
 | Verification Before Completion | `verification-before-completion/` | Gate obrigatorio antes de declarar "done" |
 | Dispatching Parallel Agents | `dispatching-parallel-agents/` | Orquestracao de sub-agentes em paralelo |
 | Enforcement Layer | `enforcement-layer/` | Garante invocacao obrigatoria de skills |
+
+### PROFESSION — News Curator (SEMPRE ATIVA)
+
+| Skill | Diretorio | Descricao |
+|-------|-----------|-----------|
+| News Curator | `professions/news-curator/` | Curadoria de noticias, editorial AI, pipeline jornalistico, PT-PT |
 
 ### FASE 1 — Ideacao & Planeamento
 
@@ -55,7 +62,7 @@ Workflows: 3
 
 | Skill | Diretorio | Descricao |
 |-------|-----------|-----------|
-| Backend Dev Guidelines | `backend-dev-guidelines/` | Padroes Node.js/Express/TypeScript |
+| Backend Dev Guidelines | `backend-dev-guidelines/` | Padroes Python/Node.js/TypeScript |
 | Senior Fullstack | `senior-fullstack/` | Guia completo fullstack |
 | API Security Best Practices | `api-security-best-practices/` | Seguranca de APIs |
 | Auth Implementation Patterns | `auth-implementation-patterns/` | JWT, OAuth2, sessoes |
@@ -110,7 +117,7 @@ ARQUITETURA:
   agente|agent|autonomo|pipeline|orchestration|MCP → sota-agent-engineering
 
 BACKEND:
-  backend|servidor|Node|Express       → backend-dev-guidelines, senior-fullstack
+  backend|servidor|Node|Express|Python → backend-dev-guidelines, senior-fullstack
   seguranca-api|rate-limit|CORS       → api-security-best-practices
   auth|login|JWT|OAuth|sessao         → auth-implementation-patterns
 
@@ -138,15 +145,27 @@ ENFORCEMENT (SEMPRE ATIVO):
   done|completo|pronto|terminado|feito → verification-before-completion
   paralelo|agentes|concurrent|dispatch → dispatching-parallel-agents
   (enforcement-layer aplica-se automaticamente a TODOS os requests)
+
+NOTICIA (SEMPRE ATIVO — Profession: news-curator):
+  noticia|artigo|editorial|facto      → news-curator (profession)
+  pipeline|dispatcher|fact-checker    → news-curator + sota-agent-engineering
+  escritor|redacao|PT-PT|portugues    → news-curator
+  curadoria|triagem|classificacao     → news-curator + sota-agent-engineering
+  collector|RSS|GDELT|ACLED|Telegram  → news-curator
+  Supabase|intake_queue|raw_events    → news-curator + database-design
+  Ollama|modelo|LLM|batch            → news-curator + sota-agent-engineering
+  dedup|title_hash|filtro             → news-curator + performance-engineer
+  fact-check|verificacao|fonte        → news-curator
+  publicacao|publish|artigo           → news-curator
 ```
 
 ### Complexidade → Combinacao de Skills
 
 | Complexidade | Comportamento |
 |-------------|---------------|
-| Simples (1 ficheiro, 1 tarefa) | 1-2 skills da fase relevante |
-| Media (multiplos ficheiros, 1 feature) | 2-4 skills, possivelmente cross-fase |
-| Alta (sistema completo, multiplas features) | 4+ skills, multiplas fases em sequencia |
+| Simples (1 ficheiro, 1 tarefa) | 1-2 skills da fase relevante + news-curator |
+| Media (multiplos ficheiros, 1 feature) | 2-4 skills, possivelmente cross-fase + news-curator |
+| Alta (sistema completo, multiplas features) | 4+ skills, multiplas fases em sequencia + news-curator |
 
 ---
 
@@ -169,6 +188,10 @@ ENFORCEMENT (SEMPRE ATIVO):
   verification-before-completion
   dispatching-parallel-agents
   enforcement-layer
+       │
+       ▼
+[Profession — SEMPRE ATIVA]
+  news-curator (curadoria, editorial, PT-PT, pipeline)
        │
        ▼
 [Classificar Request]
@@ -194,13 +217,38 @@ ENFORCEMENT (SEMPRE ATIVO):
 
 ---
 
+## NoticIA — Contexto Especifico
+
+### Pipeline V2 (Optimizado)
+```
+raw_events → [Dispatcher V2: dedup + filtro + batch LLM + quality gate] → intake_queue
+  → [Fact-Checker: web search + verificacao] → [Escritor: PT-PT] → articles
+```
+
+### 53 Agentes (Supabase)
+Roles: collector, dispatcher, reporter, fact_checker, auditor (deprecated),
+       writer, editor, publisher, columnist, engineer, ceo, hr
+
+### Modelos Ativos
+- gpt-oss:20b (dispatcher, publisher) — routing rapido
+- mistral-large-3:675b (reporter, writer) — escrita PT-PT
+- deepseek-v3.2 (fact_checker) — verificacao profunda
+- cogito-2.1:671b (editor, ceo, hr) — julgamento editorial
+- gemma3:27b (columnist) — escrita criativa
+- devstral-2:123b (engineer) — codigo
+
+### Infraestrutura
+- Oracle Cloud ARM64 VM (82.70.84.122)
+- systemd: noticia-pipeline, noticia-telegram, noticia-diretor-elite
+- Supabase: ljozolszasxppianyaac
+- Deploy: SSH + systemctl restart
+
+---
+
 ## Extensoes
 
 ### Professions (`professions/`)
-Skills de profissao com formato identico. Exemplos:
-- `professions/journalist/SKILL.md`
-- `professions/lawyer/SKILL.md`
-- `professions/data-scientist/SKILL.md`
+- `professions/news-curator/SKILL.md` — Curadoria de noticias AI (SEMPRE ATIVA)
 
 ### Workflows (`workflows/`)
 Sequencias pre-definidas de skills:

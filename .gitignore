@@ -66,3 +66,12 @@ telegram-collector/.venv/
 pipeline/venv/
 *.pyc
 __pycache__/
+
+# NoticIA specifics
+pipeline/.env*
+telegram-bot/.env
+telegram-bot/.venv/
+telegram-bot/*.session
+pipeline/venv/
+pipeline/SKILLS/
+*.bak
