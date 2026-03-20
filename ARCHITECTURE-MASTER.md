@@ -1,7 +1,28 @@
 # ARCHITECTURE MASTER — Curador de Noticias
 
 > Documento de referencia completa do sistema. Todos os agentes, as suas funcoes, inputs/outputs, dependencias e sequencia de construcao.
-> Ultima atualizacao: 2026-03-16
+> Ultima atualizacao: 2026-03-19 v2 — Filosofia LLM-First: todos os agentes (exceto Publisher P2/P3) usam raciocinio LLM. Reporter_configs migrados para v1-llm-reasoning sem keywords. Dispatcher LLM actualizado. Equipa Elite com system prompts completos.
+
+---
+
+## 0. FILOSOFIA LLM-FIRST (PRINCIPIO ARQUITECTURAL CENTRAL)
+
+**Todos os agentes com "cerebro" usam raciocinio LLM — sem keyword matching, sem automacao cega.**
+
+Excepcoes (automacao pura, sem raciocinio necessario):
+- Publisher P2 e P3 — scheduling temporal, sem decisao editorial
+- Coletores — fetch de APIs/RSS, sem avaliacao de conteudo
+
+Todos os outros agentes raciocinam: Dispatcher, 19 Reporters, 6 FCs Sectoriais, Auditor, Escritor, Editor-Chefe, Publisher P1, 10 Cronistas, 4 Engenheiros, Equipa Elite.
+
+**Modelo por papel:**
+- Raciocinio de classificacao/routing (Dispatcher): `nvidia/nemotron-nano-30b-instruct:free` via OpenRouter
+- Raciocinio editorial profundo (Reporters, FCs, Auditor, Escritor, Editor-Chefe, Elite): `nvidia/nemotron-3-super-120b-a12b:free` via OpenRouter
+- Cronistas e analise de longo-prazo: `nvidia/nemotron-3-super-120b-a12b:free` via OpenRouter
+- Seguranca/guardrail: `nvidia/nemotron-content-safety-reasoning-4b` via NIM
+- Traducao automatica: `nvidia/riva-translate-4b-instruct-v1_1` via NIM
+
+**skill_version dos reporters:** `v1-llm-reasoning` (migrado de v0-keywords em 2026-03-19)
 
 ---
 
@@ -28,32 +49,79 @@ Missao: Ser um farol para o leitor portugues contra fake news e manipulacao poli
 
 ## 1. VISAO GERAL DO SISTEMA
 
-Sistema editorial autonomo com ~45 agentes que recolhe noticias de multiplas fontes globais, verifica factos, deteta e denuncia vies politico, escreve artigos em PT-PT, e publica com diferentes niveis de prioridade. Inclui cronistas com personalidade editorial e equipa tecnica de auto-monitorizacao.
+Sistema editorial autonomo com 57 agentes que recolhe noticias de multiplas fontes globais, verifica factos, deteta e denuncia vies politico, escreve artigos em PT-PT, e publica com diferentes niveis de prioridade. Inclui cronistas com personalidade editorial e equipa tecnica de auto-monitorizacao.
+
+**Ultima actualizacao estrutural:** 2026-03-19 — CEO OpenClaw entre Wilson e o pipeline; Dispatcher LLM real (substitui keyword scoring); 19 reporters por categoria; 6 FCs sectoriais; equipa investigacao elite; 57 agentes totais.
 
 ```
-FONTES DO MUNDO
-      │
-      ▼
-[CAMADA 1] 7 Coletores ──→ raw_events
-      │
-      ▼
-[CAMADA 2] 1 Dispatcher ──→ classifica tema + atribui reporter
-      │
-      ▼
-[CAMADA 3] 18 Reporters Especialistas ──→ fact-check + forense ──→ intake_queue
-      │
-      ▼
-[CAMADA 4] Auditor → Escritor → Editor-Chefe ──→ articles
-      │
-      ▼
-[CAMADA 5] 3 Publishers (P1/P2/P3) ──→ frontend
-      │
-      ▼
-[CAMADA 6] 10 Cronistas (analise semanal) ──→ seccao Opiniao/Analise
-      │
-      ▼
-[CAMADA 7] 4 Engenheiros (monitorizacao + correcao) ──→ health checks + auto-repair
+       ┌──────────────────────────────────────────────────────────┐
+       │                      WILSON                              │
+       │               (Diretor & Publisher)                      │
+       └──────────┬────────────────────────────┬─────────────────┘
+                  │                            │
+                  ▼                            ▼
+     ┌────────────────────────┐    ┌───────────────────────────────┐
+     │  EQUIPA INVESTIGACAO   │    │    🧠 CEO — OpenClaw          │
+     │       ELITE ⭐          │    │    Orquestrador Principal     │
+     │                        │    │    scheduler_ollama.py        │
+     │ 🔍 Reporter Investigacao│    │    Oracle VM · systemd        │
+     │ 🧬 Fact-Checker Forense │    └──────────────┬───────────────┘
+     │ 📡 Publisher Elite      │                   │
+     │                        │                   ▼
+     │ ⚡ Bypass total ao CEO  │    FONTES (RSS · GDELT · Telegram · X · ACLED · EventReg)
+     │ e a todo o pipeline.   │                   │
+     │ Wilson aprova antes    │                   ▼
+     │ de publicar.           │    [CAMADA 1] 7 Coletores ──→ raw_events
+     └────────────────────────┘                   │
+                                                  ▼
+                                   [CAMADA 2] Dispatcher LLM
+                                   classificacao semantica (nao keywords)
+                                   routing preciso por categoria
+                                                  │
+                                                  ▼
+                                   [CAMADA 3] 19 Reporters (1/categoria)
+                                              + 6 Fact-Checkers Sectoriais
+                                                  │
+                                                  ▼
+                                   [CAMADA 4] Auditor → Escritor → Editor-Chefe
+                                                  │
+                                                  ▼
+                                   [CAMADA 5] Publishers P1 (30min) · P2 (3h) · P3 (2x/dia)
+                                                  │
+                                                  ▼
+                                   [CAMADA 6] 10 Cronistas ──→ seccao Opiniao
+                                                  │
+                                                  ▼
+                                   [CAMADA 7] 4 Engenheiros ──→ health + auto-repair
 ```
+
+**Total: 56 agentes activos** | Deprecated (paused): bridge-events, fact-checker-generico, triagem, source-finder, dossie
+
+| Camada | Agentes | Qtd |
+|--------|---------|-----|
+| CEO | OpenClaw (orquestrador) | 1 |
+| Camada 1 | Coletores | 7 |
+| Camada 2 | Dispatcher LLM | 1 |
+| Camada 3 | Reporters + Fact-Checkers Sectoriais | 25 |
+| Camada 4 | Auditor + Escritor + Editor-Chefe | 3 |
+| Camada 5 | Publishers P1 + P2 + P3 | 3 |
+| Camada 6 | Cronistas | 10 |
+| Camada 7 | Engenheiros | 4 |
+| Elite | Reporter Investigacao + FC Forense + Publisher Elite | 3 |
+| **TOTAL** | | **57** |
+
+**Categorias editoriais activas (19, sem Desporto):**
+
+| Sector | Categorias | Reporter | Fact-Checker |
+|--------|-----------|---------|-------------|
+| 🌍 MUNDO | Geopolitica, Politica Internacional, Diplomacia, Defesa, Defesa Estrategica | 5 reporters | FC-MUNDO |
+| ⚗️ CIENCIA & TECH | Tecnologia, Ciencia, Energia, Clima & Ambiente | 4 reporters | FC-TECH |
+| 🇵🇹 PORTUGAL | Portugal, Sociedade | 2 reporters | FC-PORTUGAL |
+| 📈 ECONOMIA | Economia, Financas & Mercados, Crypto & Blockchain, Regulacao | 4 reporters | FC-ECONOMIA |
+| ❤️ SAUDE & SOCIAL | Saude, Direitos Humanos | 2 reporters | FC-SAUDE |
+| 🔒 JUSTICA & SEGURANCA | Fact-Check/Desinformacao, Crime Organizado | 2 reporters | FC-JUSTICA |
+
+**Total: 55 agentes** (7 coletores + 1 dispatcher + 19 reporters + 6 FCs + 3 elite + 3 editorial + 3 publishers + 10 cronistas + 4 engenheiros - 1 dispatcher ja contado)
 
 ---
 
@@ -69,35 +137,63 @@ Output: tabela `raw_events`
 | 1 | collect-rss | 133 feeds RSS | ~1700+/dia | ATIVO (v4, 133 feeds) | `collect-rss` v4 |
 | 2 | collect-gdelt | GDELT v2 API | 14×250 arts | ATIVO (fix rate limit) | `collect-gdelt` EXISTE |
 | 3 | collect-x-cowork | Cowork WebSearch (site:x.com) | 7 areas/ciclo × ~5-15 tweets | MIGRAR (Prompt 11) — substitui collect-x-grok | Scheduled task collect-x-cowork |
-| 4 | collect-telegram | Telegram Bot API | 48 canais configurados | ATIVO (48 canais) | `collect-telegram` EXISTE |
+| 4 | collect-telegram | Telethon (MTProto) | 1.255 canais, rotação por tier | ATIVO (Oracle VM systemd) | `collect-telegram` EXISTE |
 | 5 | collect-event-reg | Event Registry API | 14×100 arts | INATIVO (falta EVENT_REGISTRY_API_KEY) | `collect-event-registry` EXISTE |
 | 6 | collect-acled | ACLED API | Conflitos/dia | INATIVO (falta ACLED_API_KEY) | `collect-acled` EXISTE |
 | 7 | collect-crawl4ai | Crawl4AI scraping | On-demand | ATIVO (enriquecimento) | `collect-crawl4ai` EXISTE |
 
 **Nota:** Todas as 7 Edge Functions existem no Supabase. O PIPELINE-FLOW.md dizia "NAO EXISTE" mas estao deployed. O problema e que a maioria precisa de API keys.
 
-### CAMADA 2 — Dispatcher (1 agente)
+### CAMADA 2 — Dispatcher LLM (1 agente)
 
 | # | Agente | Funcao | Input | Output | Estado |
 |---|--------|--------|-------|--------|--------|
-| 8 | Dispatcher | Classifica tema do raw_event e atribui ao Reporter correto | `raw_events` (processed=false) | `scored_events` + routing para reporter | **NAO EXISTE — BURACO PRINCIPAL** |
+| 8 | dispatcher | Classificacao semantica LLM + routing preciso para reporter correcto | `raw_events` (processed=false) | `scored_events` + routing | A IMPLEMENTAR (substitui bridge-events) |
 
-**Funcao detalhada:**
-1. Le `raw_events` WHERE `processed = false`
-2. Analisa titulo + conteudo
-3. Classifica em 1+ areas tematicas
-4. Atribui ao(s) Reporter(s) especialista(s) correto(s)
-5. Marca `raw_events.processed = true`
+**Funcao detalhada — Dispatcher LLM (nao keyword scoring):**
+1. Le `raw_events` WHERE `processed = false` em batch
+2. Para cada evento: LLM analisa titulo + conteudo + fonte em contexto completo
+3. Classifica semanticamente em 1+ categorias das 19 activas (pode atribuir a multiplos reporters se o evento for multi-tematico)
+4. Avalia relevancia para Portugal (filtro antes de qualquer processamento downstream)
+5. Atribui prioridade preliminar P1/P2/P3 com base no impacto estimado
+6. Faz routing para o(s) reporter(s) especialista(s) correcto(s)
+7. Marca `raw_events.processed = true` com metadata de classificacao
 
-**Nota:** Atualmente no codigo Python (runner.py), os reporters recebem TODOS os eventos e cada um faz scoring por keywords. Este modelo funciona mas nao usa LLM para classificacao inteligente. O Dispatcher pode ser:
-- **Opcao A (simples):** Manter o modelo atual de keyword scoring (ja implementado em `base.py`)
-- **Opcao B (inteligente):** Usar Grok para classificar o tema antes de routing (mais preciso, mais caro)
+**Porque LLM e nao keyword scoring:**
+- Keyword scoring gerava falsos positivos (ex: "banco" classificava como financas quando era "Banco de Portugal" em contexto politico)
+- Nao detectava multi-tematicidade (uma noticia sobre sancoes economicas a Russia e simultaneamente geopolitica + economia + defesa)
+- Nao entendia contexto ou ironia na fonte
+- LLM classifica com 95%+ de precisao vs ~60-70% do keyword scoring
 
-### CAMADA 3 — Reporters Especialistas (18 agentes)
+**Modelo:** `nvidia/nemotron-nano-30b-instruct:free` via OpenRouter (velocidade + custo para classificacao em batch)
+**Frequencia:** cada 5 min
+**Estado:** Config actualizado em Supabase (adapter_config com model + system_prompt). A implementar em scheduler_ollama.py como job dedicado que substitui bridge-events.
+**bridge-events:** deprecated (paused). NAO reactivar.
+
+**System prompt do Dispatcher (resumo):** Analisa cada raw_event semanticamente. Determina: categoria (1-N das 19 activas), relevancia_pt (0-1), prioridade (P1/P2/P3), rejeitar (true/false). Nao usa keywords — raciocina sobre titulo + conteudo + fonte. Detecta multi-tematicidade. Output JSON.
+
+### CAMADA 0 — Equipa de Investigacao Elite (3 agentes — reporta directamente a Wilson)
+
+| # | Agente | Funcao | Pipeline | Estado |
+|---|--------|--------|---------|--------|
+| EI-1 | Reporter Investigacao | Deep-dives, exclusivos, long-form, fontes confidenciais. WebSearch forense + Crawl4AI. Raciocinio profundo. | Independente | CONFIG SUPABASE OK — pipeline a implementar |
+| EI-2 | Fact-Checker Forense | Verificacao forense independente: documentos, metadata, cadeia de custódia, fontes primárias. Adversario intelectual do Reporter. | Independente | CONFIG SUPABASE OK — pipeline a implementar |
+| EI-3 | Publisher Elite | Publicacao directa on-demand. Publica apenas como draft. Wilson faz o clique final de publicacao. | Independente | CONFIG SUPABASE OK — pipeline a implementar |
+
+**Regras da Equipa Elite:**
+- Nao passa pelo Dispatcher, Auditor, Escritor nem Editor-Chefe
+- Reporta exclusivamente a Wilson (human-in-the-loop obrigatorio)
+- Sem fila de prioridade — publica on-demand
+- Bias threshold mais baixo (0.15) — investigacao exige certeza maxima
+- Pode aceder a fontes confidenciais e documentos vazados
+
+---
+
+### CAMADA 3 — Reporters Especialistas (19 agentes) + 6 Fact-Checkers Sectoriais
 
 Os reporters sao os agentes mais inteligentes do sistema. Cada reporter faz 3 fases por evento:
 
-**Parte 1 — Fact-Check (6 checkers, via Grok API /v1/responses):**
+**Parte 1 — Fact-Check (6 checkers, via Nemotron 3 Super):**
 - source: credibilidade da fonte (tier 1-6)
 - claims: verificacao cruzada dos factos principais
 - temporal: consistencia temporal (datas, sequencia de eventos)
@@ -105,7 +201,7 @@ Os reporters sao os agentes mais inteligentes do sistema. Cada reporter faz 3 fa
 - bias: analise de vies na fonte original
 - logic: erros logicos, contradicoes internas
 
-**Parte 2 — Forensic Investigation (6 dimensoes, via Grok API + WebSearch):**
+**Parte 2 — Forensic Investigation (6 dimensoes, via Nemotron 3 Super + WebSearch):**
 - Autoria: a noticia e genuinamente desta area ou foi mal classificada?
 - WebSearch: outras fontes confirmam os mesmos detalhes?
 - Timeline: porque esta a acontecer agora? contexto que explique o timing?
@@ -173,34 +269,75 @@ A pergunta-chave que o reporter deve fazer: "Se eu contar esta noticia a um port
 
 Output: insere na `intake_queue` com prioridade (P1/P2/P3), resultados do fact-check, analise forense, e bias score
 
-| # | Agente | Area | Ambito | Keywords Exemplo (peso 5) | Collectors Prioritarios |
-|---|--------|------|--------|--------------------------|------------------------|
-| 9 | Reporter Geopolitica | geopolitics | Nacional PT + Internacional + Regional | sanctions, sovereignty, territorial dispute, annexation | gdelt, acled, event_registry |
-| 10 | Reporter Conflitos Armados | defense | Internacional + Regional | missile strike, nuclear weapon, invasion, air strike | gdelt, acled |
-| 11 | Reporter Economia | economy | Nacional PT + Internacional + Macro + Micro | recession, financial crisis, bank collapse, hyperinflation | event_registry, rss |
-| 12 | Reporter Tecnologia/IA | tech | Nacional PT + Internacional | artificial intelligence, AGI, quantum computing, zero-day | rss, x |
-| 13 | Reporter Energia | energy | Nacional PT + Internacional | oil embargo, energy crisis, nuclear meltdown, pipeline explosion | event_registry, rss |
-| 14 | Reporter Clima | environment | Nacional PT + Internacional | climate emergency, mass extinction, ecological collapse | gdelt, rss |
-| 15 | Reporter Saude | health | Nacional PT + Internacional | pandemic, outbreak, epidemic, WHO emergency, novel virus | rss, event_registry |
-| 16 | Reporter Politica Nacional | portugal | Portugal | portugal crisis, governo demissao, assembleia voto | rss, gdelt |
-| 17 | Reporter Politica Internacional | intl_politics | Internacional + Regional | election, regime change, parliament, political crisis | gdelt, event_registry |
-| 18 | Reporter Diplomacia | diplomacy | Global | peace talks, UN summit, treaty signed, ambassador expelled | gdelt, event_registry |
-| 19 | Reporter Defesa | defense_strategy | Nacional PT + Internacional | defense budget, arms deal, military alliance, naval exercise | gdelt, acled |
-| 20 | Reporter Desinformacao | disinfo | Global | fake news, propaganda, bot network, deep fake, manipulation | x, rss |
-| 21 | Reporter Direitos Humanos | human_rights | Global | genocide, ethnic cleansing, political prisoner, torture | gdelt, acled |
-| 22 | Reporter Crime Organizado | organized_crime | Nacional PT + Internacional | drug trafficking, money laundering, cartel, mafia, corruption | event_registry, rss |
-| 23 | Reporter Sociedade | society | Nacional PT + Internacional | mass protest, refugee crisis, migration, inequality | gdelt, rss |
-| 24 | Reporter Mercados | financial_markets | Nacional PT + Internacional | market crash, flash crash, circuit breaker, margin call | rss, x |
-| 25 | Reporter Cripto | crypto | Global | exchange hack, rug pull, SEC crypto, stablecoin depeg | x, rss |
-| 26 | Reporter Regulacao | regulation | Nacional PT + Internacional | supreme court ruling, antitrust action, emergency legislation | event_registry, rss |
+**Estrutura:** Cada reporter e especialista numa categoria. O fact-checker e partilhado ao nivel do sector (1 FC por sector = 6 FCs total). Todos os reporters fazem bias detection + filtro relevancia PT. Os FCs fazem verificacao cruzada independente antes de passar para a camada editorial.
 
-**Estado Atual:** 20 reporter configs existem em `base.py` e na tabela `reporter_configs` (20 rows). Todos os 20 fazem fact-check forense + bias detection completo. O reporter disinfo tem threshold mais alto (0.35) por ser critico para a missao editorial.
+**🌍 SECTOR MUNDO — FC-MUNDO**
+
+| # | Agente | Categoria | Ambito | Keywords Exemplo | Collectors |
+|---|--------|----------|--------|-----------------|------------|
+| 9 | Reporter Geopolitica | geopolitics | Internacional + PT | sanctions, sovereignty, territorial dispute, annexation | gdelt, acled, event_registry |
+| 10 | Reporter Politica Internacional | intl_politics | Internacional + Regional | election, regime change, parliament, political crisis | gdelt, event_registry |
+| 11 | Reporter Diplomacia | diplomacy | Global | peace talks, UN summit, treaty signed, ambassador expelled | gdelt, event_registry |
+| 12 | Reporter Defesa | defense | Internacional + Regional | missile strike, nuclear weapon, invasion, air strike | gdelt, acled |
+| 13 | Reporter Defesa Estrategica | defense_strategy | Nacional PT + Internacional | defense budget, arms deal, military alliance, naval exercise | gdelt, acled |
+
+**⚗️ SECTOR CIENCIA & TECH — FC-TECH**
+
+| # | Agente | Categoria | Ambito | Keywords Exemplo | Collectors |
+|---|--------|----------|--------|-----------------|------------|
+| 14 | Reporter Tecnologia | tech | Nacional PT + Internacional | artificial intelligence, AGI, quantum computing, zero-day, cybersecurity | rss, x |
+| 15 | Reporter Ciencia | science | Nacional PT + Internacional | breakthrough, discovery, clinical trial, research paper, CERN | rss, event_registry |
+| 16 | Reporter Energia | energy | Nacional PT + Internacional | oil embargo, energy crisis, nuclear, pipeline, renewables | event_registry, rss |
+| 17 | Reporter Clima & Ambiente | environment | Nacional PT + Internacional | climate emergency, wildfire, flood, ecological collapse, COP | gdelt, rss |
+
+**🇵🇹 SECTOR PORTUGAL — FC-PORTUGAL**
+
+| # | Agente | Categoria | Ambito | Keywords Exemplo | Collectors |
+|---|--------|----------|--------|-----------------|------------|
+| 18 | Reporter Portugal | portugal | Portugal | portugal, governo, assembleia, partidos, eleicoes, economia PT | rss, gdelt, telegram |
+| 19 | Reporter Sociedade | society | Nacional PT + Internacional | protest, migration, inequality, housing, education, racism | gdelt, rss, telegram |
+
+**📈 SECTOR ECONOMIA — FC-ECONOMIA**
+
+| # | Agente | Categoria | Ambito | Keywords Exemplo | Collectors |
+|---|--------|----------|--------|-----------------|------------|
+| 20 | Reporter Economia | economy | Nacional PT + Internacional | recession, inflation, bank collapse, GDP, unemployment | event_registry, rss |
+| 21 | Reporter Financas & Mercados | financial_markets | Nacional PT + Internacional | market crash, flash crash, circuit breaker, Fed, ECB | rss, x |
+| 22 | Reporter Crypto & Blockchain | crypto | Global | exchange hack, rug pull, SEC crypto, stablecoin depeg, bitcoin | x, rss |
+| 23 | Reporter Regulacao | regulation | Nacional PT + Internacional | supreme court ruling, antitrust, legislation, GDPR, AI Act | event_registry, rss |
+
+**❤️ SECTOR SAUDE & SOCIAL — FC-SAUDE**
+
+| # | Agente | Categoria | Ambito | Keywords Exemplo | Collectors |
+|---|--------|----------|--------|-----------------|------------|
+| 24 | Reporter Saude | health | Nacional PT + Internacional | pandemic, outbreak, WHO emergency, novel virus, vaccine | rss, event_registry |
+| 25 | Reporter Direitos Humanos | human_rights | Global | genocide, ethnic cleansing, political prisoner, torture, rights | gdelt, acled |
+
+**🔒 SECTOR JUSTICA & SEGURANCA — FC-JUSTICA**
+
+| # | Agente | Categoria | Ambito | Keywords Exemplo | Collectors |
+|---|--------|----------|--------|-----------------|------------|
+| 26 | Reporter Desinformacao / Fact-Check | disinfo | Global | fake news, propaganda, bot network, deepfake, manipulation | x, rss, telegram |
+| 27 | Reporter Crime Organizado | organized_crime | Nacional PT + Internacional | drug trafficking, money laundering, cartel, mafia, corruption | event_registry, rss |
+
+**6 Fact-Checkers Sectoriais:**
+
+| # | FC | Sector | Verifica | Modelo |
+|---|---|--------|---------|--------|
+| FC-1 | FC-MUNDO | Mundo | Reporters 9-13 | Nemotron 3 Super |
+| FC-2 | FC-TECH | Ciencia & Tech | Reporters 14-17 | Nemotron 3 Super |
+| FC-3 | FC-PORTUGAL | Portugal | Reporters 18-19 | Nemotron 3 Super |
+| FC-4 | FC-ECONOMIA | Economia | Reporters 20-23 | Nemotron 3 Super |
+| FC-5 | FC-SAUDE | Saude & Social | Reporters 24-25 | Nemotron 3 Super |
+| FC-6 | FC-JUSTICA | Justica & Seguranca | Reporters 26-27 | Nemotron 3 Super |
+
+**Estado Atual (2026-03-19):** 19 reporters por categoria migrados para `v1-llm-reasoning`. Keywords removidas (campo vazio). Cada reporter tem system prompt dedicado com 3 fases de analise: Fact-Check (6 dim.) + Forense (6 dim.) + Bias & Relevancia PT. Modelo: `nvidia/nemotron-3-super-120b-a12b:free`. Desporto desactivado (enabled=false). Configs em tabela `reporter_configs`.
 
 **Edge Functions relacionadas:**
 - `reporter-filter` — EXISTE (keyword scoring)
-- `grok-reporter` — EXISTE (Grok-powered analysis)
-- `grok-fact-check` — EXISTE v11 (6 checkers + 6 dimensoes forenses via Grok)
-- `grok-bias-check` — EXISTE v2 (6 dimensoes bias + filtro relevancia PT)
+- `grok-reporter` — @deprecated 16/03/2026 (substituido por scheduler_ollama.py + DeepSeek)
+- `grok-fact-check` — @deprecated 16/03/2026 (substituido por scheduler_ollama.py + Nemotron)
+- `grok-bias-check` — @deprecated 16/03/2026 (substituido por scheduler_ollama.py + Nemotron)
 
 ### CAMADA 4 — Controlo de Qualidade Editorial (3 agentes)
 
@@ -470,62 +607,112 @@ pipeline_job(priority):
 
 ---
 
-## 6. SCHEDULED TASKS (Cowork)
+## 6. SCHEDULED TASKS E PIPELINE
 
-### Estado actual: 8 tasks activas
+### 6A. Oracle Cloud — Serviços Systemd (PRODUÇÃO ✅ — migração completa 19/03/2026)
+
+> **Fly.io descomissionado.** `noticia-scheduler` e `noticia-telegram` ambos scaled to 0 em 19/03/2026.
+> Pipeline e Telegram correm agora exclusivamente na Oracle VM (82.70.84.122).
+
+| Agente | Intervalo | Modelo | Funcao |
+|--------|-----------|--------|--------|
+| `run_dispatcher` | **5 min** | Nemotron Nano 30B (OpenRouter) | raw_events → intake_queue (auditor_approved) |
+| `run_triagem` | 20 min | Nemotron Nano 30B (OpenRouter) | pending → auditor_approved (legado, no-op para eventos do dispatcher) |
+| `run_fact_checker` | 25 min | Nemotron 3 Super (OpenRouter) | auditor_approved → approved/fact_check |
+| `run_escritor` | 30 min | Nemotron 3 Super (OpenRouter) | approved → articles published |
+| ~~run_dossie~~ | ~~6h~~ | ~~DEPRECATED~~ | ~~Substituído pela Equipa de Investigação Elite~~ |
+
+**Serviços systemd activos na VM Oracle (`ubuntu@82.70.84.122`):**
+- `noticia-pipeline.service` — scheduler_ollama.py (triagem/fact-check/escritor/dossiê)
+- `noticia-telegram.service` — Telethon collector (1.255 canais, sessão migrada do Fly.io)
+- `paperclip.service` — Orquestrador Paperclip (porta 3100, Nginx proxy na 3000)
+
+~~App Fly.io: `noticia-scheduler`~~ — DESCOMISSIONADO 19/03/2026 (scale 0)
+~~App Fly.io: `noticia-telegram`~~ — DESCOMISSIONADO 19/03/2026 (scale 0)
+
+### 6B. Paperclip — Orquestrador (PRODUÇÃO ✅ — Oracle Cloud 19/03/2026)
+
+22 agentes seeded directamente no Supabase (empresa: NoticIA PT):
+
+```
+Editor-Chefe [CEO] — 60min
+├── Engenheiro-Chefe [CTO] — 4h
+├── VP Colecta — 30min
+│   ├── Coletor RSS — http POST → Supabase Edge Function — 15min
+│   ├── Coletor GDELT — http POST → Supabase Edge Function — 15min
+│   ├── Bridge Events — http POST → Supabase Edge Function — 20min
+│   └── Coletor Telegram — process (fly/oracle status) — 5min
+├── VP Editorial — 60min
+│   ├── Triagem — DeepSeek V3.2 — 20min
+│   ├── Fact-Checker — Nemotron 3 Super — 25min
+│   ├── Escritor — Nemotron 3 Super — 30min
+│   └── Dossie — Nemotron 3 Super — 6h
+└── VP Publicacao — 60min
+    ├── Publisher P2/P3 — 30min
+    └── 10 Cronistas — 24h
+```
+
+**Estado:** ✅ PRODUÇÃO — Oracle Cloud VM, 22 agentes activos, Nginx externo na porta 3000.
+**pg_cron limpo:** Jobs collect-rss, collect-gdelt, bridge-events removidos (Paperclip assume heartbeat).
+**Acesso:** `http://82.70.84.122:3000` (sem tunnel) ou `http://localhost:3100` (com tunnel SSH).
+
+### 6C. Cowork Scheduled Tasks (ainda activas)
 
 | Task | Frequencia | Funcao | Estado |
 |------|-----------|--------|--------|
-| **collector-orchestrator** | Cada 20 min | Bridge raw_events → intake_queue + health check dos coletores + reset items stuck | ACTIVO |
-| **collect-x-cowork** | Cada 30 min | Pesquisa X/Twitter via WebSearch (site:x.com). 3 areas por ciclo, rotacao completa ~3h30. Custo: $0 | ACTIVO |
-| **source-finder-cowork** | Diaria (07:00) | Descobre novos RSS feeds, canais Telegram, contas X via WebSearch → discovered_sources. Custo: $0 | ACTIVO |
-| **pipeline-triagem** | Cada 15 min | TRIAGEM RAPIDA: validacao de frescura (data real do evento vs data de colecta), reclassificacao semantica de area, fact-check basico, bias detection, filtro PT. Max 25 items/ciclo. Custo: $0 | ACTIVO (v2 — 16/03/2026) |
-| **pipeline-verificacao** | Cada 30 min | VERIFICACAO PROFUNDA: double-check frescura + area, credibilidade fonte (tier 1-6), cross-ref claims, bias 6D, certainty score. Max 5 items/ciclo. Custo: $0 | ACTIVO (v2 — 16/03/2026) |
-| **pipeline-escritor** | Cada 30 min | ESCRITA: pega items `approved`, escreve artigo PT-PT + revisao Editor-Chefe + publica. Max 2 artigos/ciclo. Custo: $0 | ACTIVO (novo) |
+| **collector-orchestrator** | Cada 20 min | Bridge raw_events → intake_queue + health check + reset items stuck | ACTIVO |
+| **source-finder-cowork** | Diaria (07:00) | Descobre novos RSS feeds, canais Telegram via WebSearch → discovered_sources | ACTIVO |
 | **publisher-p2** | Cada 3 horas | Publica artigos P2 (noticias importantes) | ACTIVO |
 | **publisher-p3** | 2x/dia (8h e 20h) | Publica artigos P3 (analise e contexto) | ACTIVO |
-| **equipa-tecnica** | Cada 4 horas | Monitorizacao completa: Engenheiro Backend (fluxo dados, pipeline, coletores) + Engenheiro Frontend (frescura conteudo, body_html, slugs) + Engenheiro-Chefe (agregacao, auto-correcao, logging). Substitui pipeline-health-check. Custo: $0 | ACTIVO |
+| **equipa-tecnica** | Cada 4 horas | Health checks: Backend + Frontend + Engenheiro-Chefe (auto-correcao + logging) | ACTIVO |
+| **cronista-semanal** | Domingo 20h | 10 cronicas semanais | ACTIVO |
 
-### Tasks desactivadas
+### Tasks desactivadas (Cowork)
 
 | Task | Motivo |
 |------|--------|
-| ~~pipeline-orchestrator~~ | DESACTIVADO — substituido por pipeline-triagem + pipeline-escritor |
-| ~~article-processor~~ | DESACTIVADO — duplicado do pipeline-orchestrator, substituido pela nova arquitetura |
-| ~~pipeline-health-check~~ | DESACTIVADO — substituido por equipa-tecnica (mais completo: 3 engenheiros, auto-correcao, logging estruturado) |
+| ~~pipeline-triagem~~ | DESACTIVADO — migrado para Fly.io/Oracle + DeepSeek V3.2 |
+| ~~agente-fact-checker~~ | DESACTIVADO — migrado para Fly.io/Oracle + Nemotron 3 Super |
+| ~~pipeline-escritor~~ | DESACTIVADO — migrado para Fly.io/Oracle + Nemotron 3 Super |
+| ~~pipeline-orchestrator~~ | DESACTIVADO — substituido por Paperclip |
+| ~~article-processor~~ | DESACTIVADO — substituido pela nova arquitectura |
+| ~~pipeline-health-check~~ | DESACTIVADO — substituido por equipa-tecnica |
+| ~~collect-x-cowork~~ | DESACTIVADO — sem API X oficial |
 
 ### Fluxo de estados da intake_queue
 
 ```
 raw_events (processed=false)
     │
-    ▼ [collector-orchestrator, cada 20min]
+    ▼ [bridge-events pg_cron, cada 20min]
 intake_queue (status='pending')
     │
-    ▼ [pipeline-triagem, cada 15min — frescura + area semantica + fact-check + bias + filtro PT]
+    ▼ [run_triagem, cada 20min — DeepSeek V3.2 — scheduler_ollama.py]
     ├─ APROVADO → status='auditor_approved'
     ├─ REJEITADO → status='auditor_failed' (low_confidence, high_bias, nao_relevante_pt, duplicado, stale_content)
     └─ EXPIRADO → status='triagem_rejected' (auto_expired_72h)
     │
-    ▼ [pipeline-verificacao, cada 30min — double-check frescura + area + fact-check profundo + bias 6D]
+    ▼ [run_fact_checker, cada 30min — Nemotron 3 Super — scheduler_ollama.py]
     ├─ APROVADO → status='approved' (certainty >= 0.7)
     ├─ REVIEW → status='review' (certainty 0.5-0.7)
     └─ REJEITADO → status='auditor_failed' (certainty < 0.5)
                 │
-                ▼ [pipeline-escritor, cada 30min — escritor PT-PT + editor-chefe]
+                ▼ [run_escritor, cada 30min — Nemotron 3 Super — scheduler_ollama.py]
             status='writing' → status='processed' + artigo em articles (status='published')
 ```
 
 ---
 
-## 7. DIAGNOSTICO — ESTADO ATUAL (16 Mar 2026)
+## 7. DIAGNOSTICO — ESTADO ATUAL (19 Mar 2026)
 
-### ~~Problema Principal: O BURACO~~ ✅ RESOLVIDO
+### Pipeline: FUNCIONAL ✅ — 100% Oracle Cloud (19/03/2026)
 
-O pipeline esta funcional e a produzir artigos continuamente. Fluxo completo:
+Pipeline a produzir artigos continuamente via Oracle systemd + DeepSeek/Nemotron:
 ```
-raw_events → bridge-events (cada 20min) → intake_queue → pipeline-triagem (cada 15min) → pipeline-verificacao (cada 30min) → pipeline-escritor (cada 30min) → articles → publishers
+raw_events → bridge-events (Paperclip 20min) → intake_queue → run_triagem/DeepSeek (20min) → run_fact_checker/Nemotron (30min) → run_escritor/Nemotron (30min) → articles → publishers
 ```
+
+**Paperclip:** ✅ Produção — Oracle Cloud, 22 agentes, Nginx porta 3000, pg_cron limpo.
 
 ### Correcoes Aplicadas (16 Mar 2026)
 
@@ -606,7 +793,7 @@ collector-orchestrator (cada 15 min):
 - [x] Expandir RSS para 100+ feeds validados → 133 feeds, 1.824 raw_events na primeira coleta
 - [x] Corrigir GDELT rate limiting (429) → delay sequencial + backoff exponencial
 - [x] Criar collect-x-grok (substitui Twitter API — usa Grok x_search, gratis) → v3, 110 raw_events do X
-- [x] Corrigir collect-telegram (channels vazios) → 48 canais configurados (8 manuais + 40 auto-descobertos)
+- [x] Corrigir collect-telegram (channels vazios) → 1.255 canais configurados em channels.py (Tier 1-5, 23 áreas)
 - [ ] Obter API keys (Event Registry, ACLED) — pendente
 - [x] Implementar source-finder com 7 niveis → v3, 124 fontes descobertas, 95 validadas
 - [x] Integrar agente OPENCLAW como Nivel 7 (deep research etico) → queries implementadas
@@ -701,26 +888,35 @@ collector-orchestrator (cada 15 min):
 | `TELEGRAM_BOT_TOKEN` | Telegram Bot | Gratuito | ALTA |
 | `X_BEARER_TOKEN` | X/Twitter API | ~~$100/mes~~ SUBSTITUIDO por Cowork WebSearch (site:x.com) | DEPRECATED |
 
-### Modelos LLM (estrategia custo-zero para processamento)
+### Modelos LLM (estado actual — 19/03/2026)
 
-| Uso | Modelo | Onde corre | Custo extra |
-|-----|--------|-----------|-------------|
-| Triagem rapida (frescura + area + fact-check basico + bias + filtro PT) | Claude (Cowork) | pipeline-triagem | $0 (incluido na subscricao) |
-| Verificacao profunda (frescura + area + credibilidade + claims + bias 6D) | Claude (Cowork) | pipeline-verificacao | $0 |
-| Auditor "O Cetico" (certainty score final) | Claude (Cowork) | pipeline-verificacao | $0 |
-| Writer PT-PT | Claude (Cowork) | pipeline-escritor | $0 |
-| Editor-Chefe (revisao ortografica + PT-PT) | Claude (Cowork) | pipeline-escritor | $0 |
-| Cronistas | Claude (Cowork) | Scheduled task cronista (semanal) | $0 |
-| Collect-X | Claude (Cowork WebSearch) | collect-x-cowork | $0 (incluido) |
-| Source-finder | Claude (Cowork WebSearch) | source-finder-cowork | $0 (incluido) |
-| Equipa Tecnica (monitorizacao) | Claude (Cowork) | equipa-tecnica (cada 4h) | $0 |
+| Uso | Modelo | Onde corre | Custo |
+|-----|--------|-----------|-------|
+| Triagem (frescura + area semantica + fact-check basico + bias + filtro PT) | **DeepSeek V3.2** (:cloud) | scheduler_ollama.py (Fly.io → Oracle) | API DeepSeek |
+| Fact-Checker (credibilidade + claims + bias 6D + certainty) | **Nemotron 3 Super** (:cloud) | scheduler_ollama.py (Fly.io → Oracle) | API NVIDIA |
+| Dossiê (pesquisa watchlist) | **Nemotron 3 Super** (:cloud) | scheduler_ollama.py (Fly.io → Oracle) | API NVIDIA |
+| Escritor PT-PT + Editor-Chefe | **Nemotron 3 Super** (:cloud) | scheduler_ollama.py (Fly.io → Oracle) | API NVIDIA |
+| Source-finder (descoberta RSS/Telegram) | Claude (Cowork WebSearch) | Cowork scheduled task | $0 |
+| Equipa Tecnica (monitorizacao cada 4h) | Claude (Cowork) | Cowork scheduled task | $0 |
+| Cronistas (10 cronicas semanais) | Claude (Cowork) | Cowork scheduled task | $0 |
+| Publishers P2/P3 | Claude (Cowork) | Cowork scheduled task | $0 |
 
-**Principio:** TODO o sistema — processamento editorial E coletores — corre no Cowork como scheduled tasks, usando o Claude incluido na subscricao. Custo total LLM/API: $0.
-**Custo processamento artigos:** $0/dia
-**Custo coletores:** $0/dia
-**CUSTO TOTAL LLM/API: $0/dia, $0/mes**
-**Tecnica X/Twitter:** WebSearch com queries "site:x.com" / "site:twitter.com" / "site:nitter.net" para capturar tweets indexados. Trade-off aceite: ~10-15% menos cobertura de tweets < 30 min vs Grok x_search, mas suficiente para noticias em 1a mao.
-**Grok API:** ELIMINADO. Edge Functions collect-x-grok e source-finder mantidas como backup (nao chamadas). XAI_API_KEY pode ser removida.
+### Infraestrutura (estado actual e plano)
+
+| Componente | Estado | Infra |
+|-----------|--------|-------|
+| Pipeline editorial (triagem/fact-check/escritor/dossiê) | ✅ ACTIVO | Oracle VM `noticia-pipeline.service` |
+| Telegram collector (Telethon, 1.255 canais) | ✅ ACTIVO | Oracle VM `noticia-telegram.service` |
+| Paperclip (orquestrador, 22 agentes) | ✅ ACTIVO | Oracle VM `paperclip.service`, porta 3000 |
+| Supabase (DB + Edge Functions) | ✅ ACTIVO | Cloud `ljozolszasxppianyaac` |
+| Vercel (frontend Next.js) | ✅ ACTIVO | Cloud |
+| ~~Fly.io `noticia-scheduler`~~ | ❌ DESCOMISSIONADO | Scaled to 0 em 19/03/2026 |
+| ~~Fly.io `noticia-telegram`~~ | ❌ DESCOMISSIONADO | Scaled to 0 em 19/03/2026 |
+| ~~pg_cron jobs~~ | ❌ REMOVIDOS | Paperclip assume heartbeat |
+
+**Oracle Cloud VM:** AMD x86_64 (E5.Flex), 4 vCPUs, 24GB RAM, 200GB SSD — IP público 82.70.84.122, region eu-madrid-3
+**Grok API:** ELIMINADO. XAI_API_KEY removida.
+**Fly.io:** DESCOMISSIONADO. Substituído por Oracle Cloud.
 
 ---
 

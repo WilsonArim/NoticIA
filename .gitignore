@@ -52,6 +52,10 @@ telegram-collector/__pycache__/
 
 # pipeline secrets & cache
 pipeline/.env
+
+# docs with secrets (never commit .env files in docs/)
+docs/*.env
+docs/*.env.*
 pipeline/**/__pycache__/
 pipeline/**/*.pyc
 

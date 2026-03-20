@@ -10,7 +10,7 @@
 
 **Ficheiros de referencia (ler quando relevante):**
 - `AGENT-PROFILES.md` — Personalidades detalhadas dos agentes editoriais (Auditor, Escritor, Editor-Chefe, 10 Cronistas) com referencias intelectuais, estilo de escrita e instrucoes de system prompt
-- `FACT-CHECKING.md` — Spec detalhada do modulo fact-check (6 checkers + Grok API)
+- `FACT-CHECKING.md` — Spec detalhada do modulo fact-check (6 checkers + Nemotron 3 Super)
 - `FONTES.md` — Inventario completo de fontes de dados (RSS, GDELT, X, Telegram, etc.)
 - `ROADMAP.md` — Plano de evolucao futura e API keys necessarias
 
@@ -50,8 +50,11 @@ This project uses the SOTA Skills system for structured, phase-based development
 - **Runtime:** Node.js
 - **Database:** Supabase (PostgreSQL) — projeto `ljozolszasxppianyaac`
 - **Edge Functions:** Supabase Edge Functions (Deno/TypeScript)
-- **Pipeline Local:** Python 3 + APScheduler (em `pipeline/`)
-- **LLM:** Grok API (xAI) — modelo `grok-4-1-fast-reasoning`
+- **Pipeline:** Python 3 + scheduler_ollama.py (Fly.io → Oracle Cloud)
+- **Orquestrador:** Paperclip (Node.js + React + PostgreSQL via Supabase)
+- **LLM Triagem:** DeepSeek V3.2 (:cloud)
+- **LLM Editorial:** Nemotron 3 Super (:cloud) — fact-check, dossiê, escritor
+- **Infra:** Oracle Cloud ARM (4 vCPUs, 24GB RAM) — em migração desde Fly.io
 - **Deploy:** Vercel (frontend) + Supabase (backend)
 
 ---
@@ -85,7 +88,7 @@ This project uses the SOTA Skills system for structured, phase-based development
 │       ├── collectors/       → 7 coletores
 │       ├── reporters/        → 14 reporters (fact-check forense + bias detection)
 │       ├── curador/          → Dedup + filas de prioridade
-│       ├── editorial/        → Editor-Chefe + Grok client
+│       ├── editorial/        → Editor-Chefe + clientes DeepSeek/Nemotron
 │       ├── factcheck/        → 7 modulos de verificacao
 │       ├── output/           → Publisher para Supabase
 │       └── scheduler/        → APScheduler runner
@@ -112,4 +115,5 @@ This project uses the SOTA Skills system for structured, phase-based development
 2. **Sempre consultar `ARCHITECTURE-MASTER.md`** para entender o estado atual do sistema
 3. **Artigos em PT-PT** — nunca PT-BR (ex: "facto" nao "fato", "equipa" nao "time")
 4. **Supabase project ID:** `ljozolszasxppianyaac`
-5. **Grok API:** usar `/v1/responses` para fact-check (com tools), `/v1/chat/completions` para writer
+5. **LLMs activos:** DeepSeek V3.2 (triagem) + Nemotron 3 Super (fact-check, dossie, escritor). Grok API ELIMINADA.
+6. **Infra pipeline:** Oracle Cloud ARM (em migracao desde Fly.io). Paperclip como orquestrador.
