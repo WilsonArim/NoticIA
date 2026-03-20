@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Auditoria Forense Completa — Curador de Noticias</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: #0a0a0a; color: #e0e0e0; padding: 2rem; line-height: 1.6; }
+  .container { max-width: 1100px; margin: 0 auto; }
+  h1 { font-size: 1.8rem; color: #fff; margin-bottom: 0.5rem; }
+  h2 { font-size: 1.3rem; color: #60a5fa; margin: 2rem 0 1rem; border-bottom: 1px solid #1e3a5f; padding-bottom: 0.5rem; }
+  h3 { font-size: 1.1rem; color: #93c5fd; margin: 1.5rem 0 0.75rem; }
+  .subtitle { color: #888; font-size: 0.9rem; margin-bottom: 2rem; }
+  .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
+  .card { background: #141414; border: 1px solid #222; border-radius: 8px; padding: 1rem; }
+  .card.ok { border-left: 3px solid #22c55e; }
+  .card.warn { border-left: 3px solid #f59e0b; }
+  .card.danger { border-left: 3px solid #ef4444; }
+  .card.info { border-left: 3px solid #3b82f6; }
+  .card .num { font-size: 2rem; font-weight: 700; }
+  .card.ok .num { color: #22c55e; }
+  .card.warn .num { color: #f59e0b; }
+  .card.danger .num { color: #ef4444; }
+  .card.info .num { color: #3b82f6; }
+  .card .label { color: #888; font-size: 0.85rem; }
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.85rem; }
+  th { background: #1a1a2e; color: #93c5fd; text-align: left; padding: 0.6rem 0.8rem; border-bottom: 2px solid #2a2a4a; }
+  td { padding: 0.5rem 0.8rem; border-bottom: 1px solid #1a1a1a; }
+  tr:hover { background: #111122; }
+  .ok { color: #22c55e; } .warn { color: #f59e0b; } .danger { color: #ef4444; } .dead { color: #666; text-decoration: line-through; }
+  .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+  .badge-green { background: #064e3b; color: #6ee7b7; }
+  .badge-yellow { background: #451a03; color: #fcd34d; }
+  .badge-red { background: #450a0a; color: #fca5a5; }
+  .badge-blue { background: #1e3a5f; color: #93c5fd; }
+  .badge-gray { background: #1a1a1a; color: #666; }
+  .section { background: #111; border: 1px solid #222; border-radius: 8px; padding: 1.5rem; margin: 1rem 0; }
+  .finding { padding: 0.75rem; margin: 0.5rem 0; border-radius: 6px; }
+  .finding.critical { background: #1a0505; border-left: 3px solid #ef4444; }
+  .finding.high { background: #1a0f05; border-left: 3px solid #f59e0b; }
+  .finding.medium { background: #0a0a1a; border-left: 3px solid #3b82f6; }
+  .finding.low { background: #0a1a0a; border-left: 3px solid #22c55e; }
+  .finding .severity { font-weight: 700; font-size: 0.8rem; text-transform: uppercase; }
+  code { background: #1a1a2e; padding: 0.15rem 0.4rem; border-radius: 3px; font-size: 0.85rem; color: #93c5fd; }
+  .verdict { font-size: 1.1rem; padding: 1rem; border-radius: 8px; margin: 1rem 0; text-align: center; }
+  .verdict.pass { background: #064e3b; color: #6ee7b7; border: 1px solid #22c55e; }
+  .verdict.partial { background: #451a03; color: #fcd34d; border: 1px solid #f59e0b; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>Auditoria Forense Completa</h1>
+<p class="subtitle">Curador de Noticias &mdash; 2026-03-20 &mdash; Supabase + Edge Functions + Python + Codebase + DB</p>
+
+<!-- SUMMARY CARDS -->
+<div class="summary-grid">
+  <div class="card ok"><div class="num">53</div><div class="label">Agentes Supabase (todos com prompt)</div></div>
+  <div class="card info"><div class="num">24</div><div class="label">Edge Functions deployed</div></div>
+  <div class="card danger"><div class="num">9</div><div class="label">Edge Functions fantasma (no-op)</div></div>
+  <div class="card warn"><div class="num">15</div><div class="label">Ficheiros mortos/orphan encontrados</div></div>
+  <div class="card ok"><div class="num">0</div><div class="label">Agentes fantasma</div></div>
+  <div class="card warn"><div class="num">48</div><div class="label">Tabelas vazias (Paperclip overhead)</div></div>
+</div>
+
+<!-- RESPOSTA 1: AGENTES FANTASMA? -->
+<h2>1. Existem agentes fantasma?</h2>
+<div class="verdict pass"><strong>NAO.</strong> Todos os 53 agentes no Supabase sao legitimos, com system_prompt, promptTemplate e capabilities configurados. Zero fantasmas.</div>
+
+<div class="section">
+<table>
+<tr><th>Role</th><th>Qty</th><th>Agentes</th><th>Prompt</th></tr>
+<tr><td>reporter</td><td>20</td><td>19 sectoriais + 1 investigacao (elite)</td><td class="ok">53/53 ✅</td></tr>
+<tr><td>fact_checker</td><td>7</td><td>6 sectoriais + 1 forense (elite)</td><td class="ok">✅</td></tr>
+<tr><td>columnist</td><td>10</td><td>10 cronistas com personalidade</td><td class="ok">✅</td></tr>
+<tr><td>publisher</td><td>4</td><td>P1, P2, P3 + elite</td><td class="ok">✅</td></tr>
+<tr><td>collector</td><td>3</td><td>RSS, GDELT, Telegram</td><td class="ok">✅</td></tr>
+<tr><td>editorial</td><td>5</td><td>auditor, escritor, editor-chefe, dispatcher, CEO</td><td class="ok">✅</td></tr>
+<tr><td>engineering</td><td>3</td><td>engenheiro-chefe, backend, frontend</td><td class="ok">✅</td></tr>
+<tr><td>hr</td><td>1</td><td>agente-rh</td><td class="ok">✅</td></tr>
+</table>
+</div>
+
+<!-- RESPOSTA 2: PAPERCLIP = SUPABASE? -->
+<h2>2. Todos os agentes sao os do Paperclip?</h2>
+<div class="verdict partial"><strong>SIM, MAS</strong> &mdash; Paperclip le da tabela <code>agents</code> do Supabase. Os 53 agentes aparecem no Paperclip UI. Porem, o Paperclip NAO executa nenhum deles (adapter dummy). O motor real e o Python scheduler.</div>
+
+<!-- RESPOSTA 3: AUDITORIA COMPLETA -->
+<h2>3. Auditoria Forense Completa</h2>
+
+<!-- 3A: EDGE FUNCTIONS -->
+<h3>3A. Edge Functions (24 deployed)</h3>
+<table>
+<tr><th>Edge Function</th><th>Status</th><th>Notas</th></tr>
+<tr><td><code>receive-article</code></td><td><span class="badge badge-green">ACTIVA</span></td><td>Usada por escritor.py para publicar artigos</td></tr>
+<tr><td><code>receive-claims</code></td><td><span class="badge badge-green">ACTIVA</span></td><td>Recebe claims do fact-checker</td></tr>
+<tr><td><code>receive-rationale</code></td><td><span class="badge badge-green">ACTIVA</span></td><td>Recebe rationale chains</td></tr>
+<tr><td><code>agent-log</code></td><td><span class="badge badge-green">ACTIVA</span></td><td>Logging de agentes</td></tr>
+<tr><td><code>receive-intake</code></td><td><span class="badge badge-green">ACTIVA</span></td><td>Recebe items no intake_queue</td></tr>
+<tr><td><code>writer-publisher</code></td><td><span class="badge badge-green">ACTIVA</span></td><td>Publicacao de artigos (v22)</td></tr>
+<tr><td><code>article-card</code></td><td><span class="badge badge-green">ACTIVA</span></td><td>Geracao de cards para artigos</td></tr>
+<tr><td><code>collect-rss</code></td><td><span class="badge badge-blue">DORMANT</span></td><td>Edge Function para RSS — Python faz este trabalho agora</td></tr>
+<tr><td><code>collect-gdelt</code></td><td><span class="badge badge-blue">DORMANT</span></td><td>Edge Function para GDELT — Python faz este trabalho agora</td></tr>
+<tr><td><code>collect-event-registry</code></td><td><span class="badge badge-blue">DORMANT</span></td><td>Edge Function para Event Registry — Python faz</td></tr>
+<tr><td><code>collect-acled</code></td><td><span class="badge badge-blue">DORMANT</span></td><td>Edge Function para ACLED — Python faz</td></tr>
+<tr><td><code>collect-telegram</code></td><td><span class="badge badge-blue">DORMANT</span></td><td>Edge Function para Telegram — Python faz</td></tr>
+<tr><td><code>collect-crawl4ai</code></td><td><span class="badge badge-blue">DORMANT</span></td><td>Edge Function para Crawl4AI — Python faz</td></tr>
+<tr><td><code>cronista</code></td><td><span class="badge badge-red">BUG</span></td><td><strong>Ainda usa Grok API!</strong> Vai falhar com "XAI_API_KEY not set"</td></tr>
+<tr><td><code>publish-instagram</code></td><td><span class="badge badge-yellow">INCERTO</span></td><td>Funcionalidade Instagram — status desconhecido</td></tr>
+<tr><td><code>bridge-events</code></td><td><span class="badge badge-gray">NO-OP</span></td><td>Neutralizado 20/Mar</td></tr>
+<tr><td><code>grok-reporter</code></td><td><span class="badge badge-gray">NO-OP</span></td><td>Neutralizado 20/Mar</td></tr>
+<tr><td><code>grok-fact-check</code></td><td><span class="badge badge-gray">NO-OP</span></td><td>Neutralizado 20/Mar</td></tr>
+<tr><td><code>grok-bias-check</code></td><td><span class="badge badge-gray">NO-OP</span></td><td>Neutralizado 20/Mar</td></tr>
+<tr><td><code>source-finder</code></td><td><span class="badge badge-gray">NO-OP</span></td><td>Neutralizado 20/Mar</td></tr>
+<tr><td><code>reporter-filter</code></td><td><span class="badge badge-gray">NO-OP</span></td><td>Neutralizado 20/Mar</td></tr>
+<tr><td><code>curator-central</code></td><td><span class="badge badge-gray">NO-OP</span></td><td>Neutralizado 20/Mar</td></tr>
+<tr><td><code>collect-x-grok</code></td><td><span class="badge badge-gray">NO-OP</span></td><td>Neutralizado 20/Mar</td></tr>
+<tr><td><code>collect-x</code></td><td><span class="badge badge-gray">NO-OP</span></td><td>Neutralizado 20/Mar</td></tr>
+</table>
+
+<!-- 3B: RPC FUNCTIONS -->
+<h3>3B. RPC Functions (PostgreSQL)</h3>
+<table>
+<tr><th>Funcao</th><th>Status</th><th>Problema</th></tr>
+<tr><td><code>bridge_raw_to_intake</code></td><td><span class="badge badge-red">FANTASMA</span></td><td>Dispatcher SQL antigo (keyword matching). Substituido por dispatcher.py mas ainda existe na DB. ~130 linhas de PL/pgSQL. Nao e chamado por ninguem activo.</td></tr>
+<tr><td><code>auditor_evaluate</code></td><td><span class="badge badge-yellow">LEGACY</span></td><td>Processa items status='pending' — mas o dispatcher insere com 'auditor_approved'. So util para items legacy.</td></tr>
+<tr><td><code>enforce_publish_quality</code></td><td><span class="badge badge-green">ACTIVA</span></td><td>Trigger de qualidade na publicacao</td></tr>
+<tr><td><code>log_publish_block</code></td><td><span class="badge badge-green">ACTIVA</span></td><td>Logging de bloqueios de publicacao</td></tr>
+<tr><td><code>publish_article_with_sources</code></td><td><span class="badge badge-green">ACTIVA</span></td><td>RPC atomico usado pelo escritor.py</td></tr>
+<tr><td><code>get_secret</code></td><td><span class="badge badge-green">ACTIVA</span></td><td>Utility function</td></tr>
+</table>
+
+<!-- 3C: TABELAS -->
+<h3>3C. Tabelas Supabase (80 total)</h3>
+<div class="section">
+<p><strong>32 tabelas activas</strong> (com dados):</p>
+<table>
+<tr><th>Tabela</th><th>Rows</th><th>Status</th></tr>
+<tr><td><code>raw_events</code></td><td>15,565</td><td><span class="badge badge-green">CORE</span></td></tr>
+<tr><td><code>intake_queue</code></td><td>4,574</td><td><span class="badge badge-green">CORE</span></td></tr>
+<tr><td><code>articles</code></td><td>179</td><td><span class="badge badge-green">CORE</span></td></tr>
+<tr><td><code>pipeline_runs</code></td><td>868</td><td><span class="badge badge-green">CORE</span></td></tr>
+<tr><td><code>agents</code></td><td>53</td><td><span class="badge badge-green">CORE</span></td></tr>
+<tr><td><code>heartbeat_run_events</code></td><td>1,046</td><td><span class="badge badge-yellow">PAPERCLIP</span> — heartbeats falsos (adapter dummy)</td></tr>
+<tr><td><code>heartbeat_runs</code></td><td>491</td><td><span class="badge badge-yellow">PAPERCLIP</span></td></tr>
+<tr><td><code>agent_wakeup_requests</code></td><td>498</td><td><span class="badge badge-yellow">PAPERCLIP</span></td></tr>
+<tr><td><code>scored_events</code></td><td>16</td><td><span class="badge badge-red">ORPHAN</span> — residuo do bridge_raw_to_intake antigo</td></tr>
+<tr><td><code>dossie_watchlist</code></td><td>5</td><td><span class="badge badge-red">ORPHAN</span> — dossie foi deprecated</td></tr>
+<tr><td><code>discovered_sources</code></td><td>172</td><td><span class="badge badge-yellow">LEGACY</span> — do source-finder eliminado</td></tr>
+</table>
+<p style="margin-top:1rem"><strong>48 tabelas VAZIAS</strong> (0 rows) — maioria e overhead do framework Paperclip. Nao fazem mal, mas ocupam schema.</p>
+</div>
+
+<!-- 3D: FICHEIROS MORTOS -->
+<h3>3D. Ficheiros Mortos no Codebase</h3>
+
+<div class="finding critical">
+<div class="severity danger">CRITICO</div>
+<strong><code>pipeline/src/openclaw/bridge.py</code></strong> — Ficheiro fantasma. Importa <code>openclaw.reporters.base</code> que NAO EXISTE. ModuleNotFoundError se executado. Ninguem o chama.
+</div>
+
+<div class="finding critical">
+<div class="severity danger">CRITICO</div>
+<strong><code>supabase/functions/cronista/index.ts</code></strong> — Edge Function activa que ainda usa a Grok API eliminada (<code>https://api.x.ai/v1</code>, modelo <code>grok-3-fast</code>). Vai falhar com "XAI_API_KEY not set" quando chamada.
+</div>
+
+<div class="finding high">
+<div class="severity warn">ALTO</div>
+<strong><code>pipeline/src/openclaw/config.py</code></strong> — Contem constantes mortas: <code>XAI_API_KEY</code>, <code>XAI_BASE_URL</code>, <code>XAI_MODEL</code>, <code>XAI_PRICING</code>. Nenhum codigo activo as usa.
+</div>
+
+<div class="finding high">
+<div class="severity warn">ALTO</div>
+<strong><code>pipeline/src/openclaw/agents/dossie.py</code></strong> — Marcado como DEPRECATED 2026-03-19. Comentado no scheduler. Codigo morto.
+</div>
+
+<div class="finding medium">
+<div class="severity" style="color:#3b82f6">MEDIO</div>
+<strong><code>src/components/xai/</code></strong> — 5 componentes React da era Grok: BiasAuditPanel, ConfidenceBreakdown, CounterfactualExplorer, RationaleChips, TripletViewer. Provavelmente mortos.
+</div>
+
+<div class="finding medium">
+<div class="severity" style="color:#3b82f6">MEDIO</div>
+<strong><code>telegram-collector/</code></strong> — Projecto Python separado com venv proprio e <code>fly.toml</code>. Provavelmente orphan — o Telegram collector activo esta em <code>pipeline/src/openclaw/collectors/telegram_collector.py</code>.
+</div>
+
+<div class="finding medium">
+<div class="severity" style="color:#3b82f6">MEDIO</div>
+<strong><code>pipeline/src/openclaw/agents/triagem.py</code></strong> — Legacy. Ainda corre no scheduler (20min) para processar items 'pending' antigos. Deve ser desactivado apos limpar os 1905 pending.
+</div>
+
+<div class="finding low">
+<div class="severity ok">BAIXO</div>
+<strong><code>archive/</code></strong> — 34 ficheiros .md obsoletos. CLAUDE.md ja diz "NUNCA usar como referencia".
+</div>
+
+<div class="finding low">
+<div class="severity ok">BAIXO</div>
+<strong>3x <code>.docx</code> na raiz</strong> — NoticIA-Auditoria-Tecnica v1/v2/v3. Documentos historicos.
+</div>
+
+<!-- 3E: INCONGRUENCIAS -->
+<h3>3E. Incongruencias Criticas</h3>
+
+<div class="section">
+<table>
+<tr><th>#</th><th>Incongruencia</th><th>Severidade</th><th>Acao Recomendada</th></tr>
+<tr><td>1</td><td><strong>53 agentes no Supabase vs 4 funcoes no Python</strong> — O Python scheduler so tem dispatcher, triagem, fact_checker, escritor. Os 53 agentes com prompts detalhados NAO sao lidos pelo pipeline Python.</td><td><span class="badge badge-red">CRITICA</span></td><td>Refactorizar Python para ler prompts da tabela agents, OU aceitar que os prompts sao apenas para Paperclip UI e futuro uso.</td></tr>
+<tr><td>2</td><td><strong>6 Edge Functions de collectors DORMANT</strong> — collect-rss, collect-gdelt, collect-event-registry, collect-acled, collect-telegram, collect-crawl4ai existem como Edge Functions mas o Python faz este trabalho. Duplicacao.</td><td><span class="badge badge-yellow">MEDIA</span></td><td>Converter em no-op como as outras 9, ou manter como backup.</td></tr>
+<tr><td>3</td><td><strong>reporter_configs (20) vs agents reporters (19+1)</strong> — reporter_configs tem 20 areas incluindo desporto (enabled=false). Os agents tem 19 reporters + 1 investigacao. Mapeamento e feito por area, nao por nome.</td><td><span class="badge badge-blue">BAIXA</span></td><td>Consistente — desporto disabled em ambos os lados.</td></tr>
+<tr><td>4</td><td><strong>fact_checker_configs (6) vs fc agents (7)</strong> — Tabela tem 6 checkers (source_verification, claim_crossref, temporal_consistency, ai_detection, bias_analysis, logic_audit). Agents tem 7 FCs (6 sectoriais + fc-forense). Conceitos diferentes — configs sao tipos de verificacao, agents sao por area.</td><td><span class="badge badge-blue">BAIXA</span></td><td>Nao e incongruencia — sao dimensoes diferentes.</td></tr>
+<tr><td>5</td><td><strong>bridge_raw_to_intake RPC ainda existe</strong> — O dispatcher SQL antigo (keyword matching) ainda esta na DB. Ninguem o chama, mas pode ser invocado acidentalmente via Supabase client.</td><td><span class="badge badge-yellow">MEDIA</span></td><td>DROP FUNCTION ou renomear para _deprecated.</td></tr>
+<tr><td>6</td><td><strong>pg_cron: 0 jobs</strong> — Todos os cron jobs do Supabase foram desactivados. Correcto — o scheduling e feito pelo Python.</td><td><span class="badge badge-green">OK</span></td><td>Nenhuma.</td></tr>
+<tr><td>7</td><td><strong>grok_system_prompt coluna em reporter_configs e fact_checker_configs</strong> — Nome legacy da era Grok. Os prompts estao agora em agents.adapter_config.system_prompt.</td><td><span class="badge badge-blue">BAIXA</span></td><td>Renomear coluna para <code>system_prompt</code> ou manter como historico.</td></tr>
+</table>
+</div>
+
+<!-- VEREDICTO FINAL -->
+<h2>Veredicto Final</h2>
+<div class="verdict partial">
+<strong>SISTEMA 80% LIMPO</strong><br>
+Zero agentes fantasma. 9 Edge Functions neutralizadas. Pipeline funcional mas estrangulada por rate limit.<br>
+Restam: 1 Edge Function com Grok (cronista), 2 RPC functions ghost, ~15 ficheiros mortos no codebase, e a incongruencia fundamental de 53 agentes configurados que o Python nao le.
+</div>
+
+<h3>Accoes Prioritarias</h3>
+<table>
+<tr><th>Prioridade</th><th>Acao</th><th>Esforco</th></tr>
+<tr><td><span class="badge badge-red">P1</span></td><td>Migrar Edge Function <code>cronista</code> de Grok para Nemotron 3 Super via OpenRouter</td><td>~2h</td></tr>
+<tr><td><span class="badge badge-red">P1</span></td><td>Eliminar <code>bridge.py</code> (ficheiro fantasma com imports quebrados)</td><td>5min</td></tr>
+<tr><td><span class="badge badge-yellow">P2</span></td><td>DROP FUNCTION <code>bridge_raw_to_intake</code> (RPC ghost)</td><td>1min</td></tr>
+<tr><td><span class="badge badge-yellow">P2</span></td><td>Limpar config.py: remover constantes XAI_* mortas</td><td>5min</td></tr>
+<tr><td><span class="badge badge-yellow">P2</span></td><td>Eliminar <code>dossie.py</code> do codebase</td><td>1min</td></tr>
+<tr><td><span class="badge badge-yellow">P2</span></td><td>Clarificar <code>telegram-collector/</code> — eliminar se orphan</td><td>10min</td></tr>
+<tr><td><span class="badge badge-blue">P3</span></td><td>Eliminar <code>src/components/xai/</code> (5 componentes mortos)</td><td>5min</td></tr>
+<tr><td><span class="badge badge-blue">P3</span></td><td>Converter 6 Edge Functions de collectors dormant em no-op</td><td>15min</td></tr>
+<tr><td><span class="badge badge-blue">P3</span></td><td>Limpar tabelas orphan: scored_events, dossie_watchlist</td><td>2min</td></tr>
+<tr><td><span class="badge badge-blue">P3</span></td><td>Desactivar triagem no scheduler (apos processar pending)</td><td>5min</td></tr>
+</table>
+
+<p style="margin-top: 2rem; color: #666; font-size: 0.8rem; text-align: center;">
+Gerado automaticamente &mdash; Auditoria Forense Curador de Noticias &mdash; 2026-03-20
+</p>
+
+</div>
+</body>
+</html>

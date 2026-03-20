@@ -1,7 +1,7 @@
 # ARCHITECTURE MASTER — Curador de Noticias
 
 > Documento de referencia completa do sistema. Todos os agentes, as suas funcoes, inputs/outputs, dependencias e sequencia de construcao.
-> Ultima atualizacao: 2026-03-19 v2 — Filosofia LLM-First: todos os agentes (exceto Publisher P2/P3) usam raciocinio LLM. Reporter_configs migrados para v1-llm-reasoning sem keywords. Dispatcher LLM actualizado. Equipa Elite com system prompts completos.
+> Ultima atualizacao: 2026-03-20 v3 — Operação Limpeza: 53 agentes activos (deprecated eliminados), TODOS com system_prompt + promptTemplate + capabilities configurados. Claude CLI removido do Paperclip. Dispatcher.py deployed Oracle. Hierarquia reestruturada. Adapter type unificado (claude_local). 3 novos agentes: engenheiro-backend, engenheiro-frontend, agente-rh.
 
 ---
 
@@ -95,20 +95,23 @@ Sistema editorial autonomo com 57 agentes que recolhe noticias de multiplas font
                                    [CAMADA 7] 4 Engenheiros ──→ health + auto-repair
 ```
 
-**Total: 56 agentes activos** | Deprecated (paused): bridge-events, fact-checker-generico, triagem, source-finder, dossie
+**Total: 53 agentes activos** | Deprecated (ELIMINADOS permanentemente): bridge-events, fact-checker-generico, triagem, source-finder, dossie
 
 | Camada | Agentes | Qtd |
 |--------|---------|-----|
 | CEO | OpenClaw (orquestrador) | 1 |
-| Camada 1 | Coletores | 7 |
+| RH | Agente-RH (auditor organizacional) | 1 |
+| Camada 1 | Coletores (RSS, GDELT, Telegram + 4 em implementação) | 7 |
 | Camada 2 | Dispatcher LLM | 1 |
-| Camada 3 | Reporters + Fact-Checkers Sectoriais | 25 |
+| Camada 3 | Reporters + Fact-Checkers Sectoriais | 26 |
 | Camada 4 | Auditor + Escritor + Editor-Chefe | 3 |
 | Camada 5 | Publishers P1 + P2 + P3 | 3 |
 | Camada 6 | Cronistas | 10 |
-| Camada 7 | Engenheiros | 4 |
+| Camada 7 | Engenheiros (Chefe + Backend + Frontend) | 3 |
 | Elite | Reporter Investigacao + FC Forense + Publisher Elite | 3 |
-| **TOTAL** | | **57** |
+| **TOTAL** | | **58** |
+
+> **Nota v3 (2026-03-20):** TODOS os 53 agentes têm `adapter_config.system_prompt` + `adapter_config.promptTemplate` + `capabilities` configurados. `adapter_type = 'claude_local'` para todos (adapter 'process' não disponível). O Paperclip NÃO usa Claude CLI — dependência removida do source code.
 
 **Categorias editoriais activas (19, sem Desporto):**
 
@@ -148,7 +151,7 @@ Output: tabela `raw_events`
 
 | # | Agente | Funcao | Input | Output | Estado |
 |---|--------|--------|-------|--------|--------|
-| 8 | dispatcher | Classificacao semantica LLM + routing preciso para reporter correcto | `raw_events` (processed=false) | `scored_events` + routing | A IMPLEMENTAR (substitui bridge-events) |
+| 8 | dispatcher | Classificacao semantica LLM + routing preciso para reporter correcto | `raw_events` (processed=false) | `intake_queue` (status=auditor_approved) | **ACTIVO** — dispatcher.py deployed Oracle VM (2026-03-20) |
 
 **Funcao detalhada — Dispatcher LLM (nao keyword scoring):**
 1. Le `raw_events` WHERE `processed = false` em batch
@@ -167,8 +170,8 @@ Output: tabela `raw_events`
 
 **Modelo:** `nvidia/nemotron-nano-30b-instruct:free` via OpenRouter (velocidade + custo para classificacao em batch)
 **Frequencia:** cada 5 min
-**Estado:** Config actualizado em Supabase (adapter_config com model + system_prompt). A implementar em scheduler_ollama.py como job dedicado que substitui bridge-events.
-**bridge-events:** deprecated (paused). NAO reactivar.
+**Estado:** ✅ ACTIVO — dispatcher.py deployed Oracle VM (2026-03-20). Corre via scheduler_ollama.py como job a cada 5 minutos. Insere em intake_queue com status='auditor_approved'.
+**bridge-events:** ELIMINADO permanentemente. NAO recriar.
 
 **System prompt do Dispatcher (resumo):** Analisa cada raw_event semanticamente. Determina: categoria (1-N das 19 activas), relevancia_pt (0-1), prioridade (P1/P2/P3), rejeitar (true/false). Nao usa keywords — raciocina sobre titulo + conteudo + fonte. Detecta multi-tematicidade. Output JSON.
 
@@ -176,9 +179,9 @@ Output: tabela `raw_events`
 
 | # | Agente | Funcao | Pipeline | Estado |
 |---|--------|--------|---------|--------|
-| EI-1 | Reporter Investigacao | Deep-dives, exclusivos, long-form, fontes confidenciais. WebSearch forense + Crawl4AI. Raciocinio profundo. | Independente | CONFIG SUPABASE OK — pipeline a implementar |
-| EI-2 | Fact-Checker Forense | Verificacao forense independente: documentos, metadata, cadeia de custódia, fontes primárias. Adversario intelectual do Reporter. | Independente | CONFIG SUPABASE OK — pipeline a implementar |
-| EI-3 | Publisher Elite | Publicacao directa on-demand. Publica apenas como draft. Wilson faz o clique final de publicacao. | Independente | CONFIG SUPABASE OK — pipeline a implementar |
+| EI-1 | Reporter Investigacao | Deep-dives, exclusivos, long-form, fontes confidenciais. WebSearch forense + Crawl4AI. Raciocinio profundo. | Independente | ✅ CONFIGURADO (system_prompt + capabilities) — pipeline a activar |
+| EI-2 | Fact-Checker Forense | Verificacao forense independente: documentos, metadata, cadeia de custódia, fontes primárias. Adversario intelectual do Reporter. | Independente | ✅ CONFIGURADO (system_prompt + capabilities) — pipeline a activar |
+| EI-3 | Publisher Elite | Publicacao directa on-demand. Publica apenas como draft. Wilson faz o clique final de publicacao. | Independente | ✅ CONFIGURADO (system_prompt + capabilities) — pipeline a activar |
 
 **Regras da Equipa Elite:**
 - Nao passa pelo Dispatcher, Auditor, Escritor nem Editor-Chefe
@@ -331,7 +334,7 @@ Output: insere na `intake_queue` com prioridade (P1/P2/P3), resultados do fact-c
 | FC-5 | FC-SAUDE | Saude & Social | Reporters 24-25 | Nemotron 3 Super |
 | FC-6 | FC-JUSTICA | Justica & Seguranca | Reporters 26-27 | Nemotron 3 Super |
 
-**Estado Atual (2026-03-19):** 19 reporters por categoria migrados para `v1-llm-reasoning`. Keywords removidas (campo vazio). Cada reporter tem system prompt dedicado com 3 fases de analise: Fact-Check (6 dim.) + Forense (6 dim.) + Bias & Relevancia PT. Modelo: `nvidia/nemotron-3-super-120b-a12b:free`. Desporto desactivado (enabled=false). Configs em tabela `reporter_configs`.
+**Estado Atual (2026-03-20):** 19 reporters por categoria com `v1-llm-reasoning`. Cada reporter tem system prompt completo em `agents.adapter_config.system_prompt` + `agents.adapter_config.promptTemplate` (copiado de `reporter_configs.grok_system_prompt`). Modelo: `nvidia/nemotron-3-super-120b-a12b:free`. Desporto desactivado (enabled=false). FCs têm system prompts específicos por sector (2400-2800 chars). Todos com capabilities detalhadas.
 
 **Edge Functions relacionadas:**
 - `reporter-filter` — EXISTE (keyword scoring)
@@ -345,9 +348,9 @@ Output: insere na `intake_queue` com prioridade (P1/P2/P3), resultados do fact-c
 
 | # | Agente | Codinome | Funcao | Inspiracao | Estado |
 |---|--------|----------|--------|-----------|--------|
-| 27 | Auditor | "O Cetico" | Double-check metodico (Sagan + Kahneman + I.F. Stone). Consistente → continua; irreconciliavel → failed; duvida → retry | Carl Sagan, Daniel Kahneman, I.F. Stone | IMPLEMENTADO |
-| 28 | Escritor | "A Pena" | Escreve artigo PT-PT: piramide invertida, Orwell rules, zero adjetivos opinativos. P1: 300-500, P2: 500-800, P3: 800-1200 | George Orwell, Ryszard Kapuscinski, Miguel Torga | IMPLEMENTADO |
-| 29 | Editor-Chefe | "O Guardiao" | Ultima linha de defesa. Revisao completa: ortografia PT-PT, pontuacao, acentuacao, PT-BR→PT-PT, coerencia titulo/conteudo, HTML limpo, estilo Orwell. Corrige erros directamente antes de publicar. Aprova, manda reescrever ou rejeita. | Ben Bradlee, Katharine Graham, Harold Evans | IMPLEMENTADO |
+| 27 | Auditor | "O Cetico" | Double-check metodico (Sagan + Kahneman + I.F. Stone). Consistente → continua; irreconciliavel → failed; duvida → retry | Carl Sagan, Daniel Kahneman, I.F. Stone | ✅ CONFIGURADO (system_prompt 2638 chars) |
+| 28 | Escritor | "A Pena" | Escreve artigo PT-PT: piramide invertida, Orwell rules, zero adjetivos opinativos. P1: 300-500, P2: 500-800, P3: 800-1200 | George Orwell, Ryszard Kapuscinski, Miguel Torga | ✅ CONFIGURADO (system_prompt 2862 chars) |
+| 29 | Editor-Chefe | "O Guardiao" | Ultima linha de defesa. 5 perguntas obrigatorias. Aprova, manda reescrever ou rejeita. Gere diversidade tematica no frontend. | Ben Bradlee, Katharine Graham, Harold Evans | ✅ CONFIGURADO (system_prompt 2497 chars) |
 
 **Self-Audit Bias (pos-escrita):**
 - 6 dimensoes: framing, omission, loaded language, epistemological, due weight, false balance
@@ -375,24 +378,24 @@ Frequencia: Semanal (cronicas) + Especiais (quando eventos relevantes acumulam)
 Input: Historico completo de `articles` filtrado por area + data
 Output: Artigos de opiniao/analise para seccao dedicada no frontend
 
-| # | Agente | Nome | Ideologia | Estilo | Areas de Dominio |
-|---|--------|------|-----------|--------|-----------------|
-| 33 | Cronista Realista Conservador | — | Conservador realista (Kissinger/Orban) | Direto, cetico de instituicoes internacionais, soberania nacional | Geopolitica + Defesa + Politica Internacional |
-| 34 | Cronista Liberal Progressista | — | Liberal progressista | Empatico, desigualdades, direitos, alerta manipulacao | Direitos Humanos + Sociedade + Desinformacao |
-| 35 | Cronista Libertario Tecnico | — | Libertario (Milei/Vitalik) | Tecnico-economico, anti-estado, pro-inovacao, dados e graficos | Cripto + Mercados + Economia |
-| 36 | Cronista Militar Pragmatico | — | Pragmatico militar (neutro) | Analise fria, campos de batalha, sem emocao | Conflitos + Diplomacia + Defesa |
-| 37 | Cronista Ambiental Realista | — | Ambiental moderado/realista | Dados cientificos + impacto economico | Clima + Energia |
-| 38 | Cronista Tech Visionario | — | Aceleracionista (Elon/xAI) | Otimista tecnologico, riscos mas progresso rapido | Tecnologia/IA + Desinformacao |
-| 39 | Cronista Saude Publica | — | Baseado em evidencia | Factual, saude publica + seguranca | Saude + Crime Organizado |
-| 40 | Cronista Nacional Portugues | — | Centrista PT / soberanista | Foco Portugal, critica Bruxelas quando necessario | Politica Nacional + Sociedade |
-| 41 | Cronista Economico Institucional | — | Tecnico-economico (FMI/BC) | Numeros, juros, inflacao, tom serio | Economia + Mercados |
-| 42 | Cronista Global vs Local | — | Alterna perspectivas | Debate interno: globalista vs nacionalista | Politica Internacional + Diplomacia + Geopolitica |
+| # | Agente | Rubrica | Ideologia | Inspiracao | Areas | Estado |
+|---|--------|---------|-----------|-----------|-------|--------|
+| 33 | cronista-conservador | "O Tabuleiro" | Conservador realista | Kissinger, Kennan, Aron, Mearsheimer, Brzezinski | Geopolitica + Defesa + Politica Internacional | ✅ CONFIGURADO |
+| 34 | cronista-progressista | "A Lente" | Liberal progressista | Arendt, Sen, Nussbaum, Snyder, Orwell | Direitos Humanos + Sociedade + Desinformacao | ✅ CONFIGURADO |
+| 35 | cronista-libertario | "O Gráfico" | Libertario | Friedman, Hayek, Taleb, Srinivasan, Buterin | Cripto + Mercados + Economia | ✅ CONFIGURADO |
+| 36 | cronista-militar | "Terreno" | Pragmatico militar (neutro) | Sun Tzu, Clausewitz, Freedman, Keegan | Conflitos + Diplomacia + Defesa | ✅ CONFIGURADO |
+| 37 | cronista-ambiental | "O Termómetro" | Ambiental moderado/realista | Smil, Rosling, Lomborg, Mann, Helm | Clima + Energia | ✅ CONFIGURADO |
+| 38 | cronista-tech | "Horizonte" | Aceleracionista moderado | Kelly, Andreessen, Kurzweil, Bostrom, Tang | Tecnologia/IA + Desinformacao | ✅ CONFIGURADO |
+| 39 | cronista-saude | "O Diagnóstico" | Baseado em evidencia | Rosling, Ioannidis, Angell, Farmer, Mukherjee | Saude + Crime Organizado | ✅ CONFIGURADO |
+| 40 | cronista-nacional | "A Praça" | Centrista PT / soberanista | Torga, Eduardo Lourenco, J.H. Saraiva, Bessa-Luis | Politica Nacional + Sociedade | ✅ CONFIGURADO |
+| 41 | cronista-economico | "O Balanço" | Tecnico-economico (BC/FMI) | Dalio, El-Erian, Roubini, Ha-Joon Chang, Piketty | Economia + Mercados | ✅ CONFIGURADO |
+| 42 | cronista-global-local | "As Duas Vozes" | Alterna globalista vs localista | Huntington, Fukuyama, Rodrik, T.Friedman, Ghemawat | Politica Internacional + Diplomacia + Geopolitica | ✅ CONFIGURADO |
 
 **Requisitos tecnicos dos Cronistas:**
 - **Memoria longa:** Acesso estruturado a `articles` com filtros por area e data (semanas/meses)
-- **Briefing semanal:** Mecanismo que condensa artigos da semana antes do cronista escrever
-- **Personalidade persistente:** System prompt com identidade, estilo e vies definidos
-- **Estado:** IMPLEMENTADO (Edge Function cronista v2 + frontend cronistas section + scheduled task Cowork pendente)
+- **Briefing semanal:** Mecanismo que condensa artigos da semana antes do cronista escrever (recebem briefing com artigos, scores, dados)
+- **Personalidade persistente:** System prompt com identidade, rubrica, ideologia, referencias intelectuais, formato e tom — todos configurados (2200-2600 chars cada)
+- **Estado (2026-03-20):** ✅ TODOS CONFIGURADOS — system_prompt + promptTemplate + capabilities. Scheduled task a activar.
 
 ### CAMADA 6.5 — Agente Explorador de Fontes (1 agente)
 
@@ -420,22 +423,25 @@ Output: Tabela `discovered_sources` + atualizacao de `collector_configs`
 **Validacao automatica:** HTTP check, XML valido, items recentes (<7 dias), classificacao de relevancia (0-1)
 **Integracao:** Fontes validadas sao adicionadas automaticamente aos collector_configs
 
-### CAMADA 7 — Equipa Tecnica (4 agentes)
+### CAMADA 7 — Equipa Tecnica (3 agentes + 1 Agente RH)
 
 Frequencia: Health check cada 4 horas + on-demand quando erros detetados
 Funcao dupla: monitorizacao do sistema + correcao autonoma de erros
 
-| # | Agente | Funcao | Monitorizacao | Acao |
-|---|--------|--------|--------------|------|
-| # | Agente | Funcao | Monitorizacao | Acao |
-|---|--------|--------|--------------|------|
-| 43 | Engenheiro Frontend | Verifica integridade conteudo (via DB) | Artigos frescos? body_html preenchido? Slugs unicos? Cronicas atualizadas? | Reporta warnings/critical |
-| 44 | Engenheiro Backend | Verifica backend + pipeline + DB | raw_events a fluir? intake_queue sem bloqueios? pipeline_runs sem erros? Coletores ativos? | Reporta + classifica severidade |
-| 45 | Engenheiro UI | MERGED com Frontend | Cowork nao consegue renderizar paginas — verificacoes UI/UX integradas nos checks de conteudo | — |
-| 46 | Engenheiro-Chefe | Coordena + auto-corrige | Agrega severidade Backend+Frontend, executa correcoes seguras (reset items encravados, timeout pipeline_runs orfaos) | Fix automatico ou escalar |
+| # | Agente | Funcao | Monitorizacao | Estado |
+|---|--------|--------|--------------|--------|
+| 43 | Engenheiro Frontend | Verifica integridade conteudo via DB | Artigos frescos? body_html preenchido? Slugs unicos? Cronicas? | ✅ CONFIGURADO (system_prompt + capabilities) |
+| 44 | Engenheiro Backend | Verifica backend + pipeline + DB | raw_events a fluir? intake_queue? pipeline_runs? Coletores? | ✅ CONFIGURADO (system_prompt + capabilities) |
+| 46 | Engenheiro-Chefe | Coordena + auto-corrige | Agrega severidade Backend+Frontend, executa correcoes seguras | ✅ CONFIGURADO (system_prompt 4682 chars) |
+
+**Nota v3 (2026-03-20):** Engenheiro UI foi MERGED com Engenheiro Frontend (eram redundantes). Agente-RH criado como agente separado (reports to CEO, não engenheiro-chefe).
+
+**Agente RH (novo — 2026-03-20):**
+| # | Agente | Funcao | Reports to | Estado |
+|---|--------|--------|-----------|--------|
+| NEW | agente-rh | Auditoria organizacional: roles, hierarquia, system prompts, modelos, adapter types. Detecta anomalias e reporta a Wilson. | openclaw-ceo | ✅ CONFIGURADO (system_prompt 4553 chars) |
 
 **Estado:** IMPLEMENTADO (Cowork scheduled task `equipa-tecnica`, cada 4h)
-**Prompt:** `COWORK-EQUIPA-TECNICA.md`
 **Logging:** 3x `agent_logs` (engenheiro-backend, engenheiro-frontend, engenheiro-chefe) + 1x `pipeline_runs` (stage=equipa_tecnica)
 
 ---
