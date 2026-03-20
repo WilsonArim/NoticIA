@@ -16,6 +16,7 @@ Fluxo do pipeline:
     → articles (status='published')
 """
 import logging
+import os
 import time
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -78,8 +79,8 @@ scheduler.add_job(
 if __name__ == "__main__":
     logger.info("=" * 60)
     logger.info("OpenClaw Pipeline — Iniciando (Oracle VM)")
-    logger.info("Modelo Dispatcher:    %s", "gpt-oss:20b-cloud (Ollama Cloud)")
-    logger.info("Modelo Editorial:     %s", "nemotron-3-super:cloud (Ollama Cloud)")
+    logger.info("Modelo Dispatcher:    %s", os.getenv("MODEL_DISPATCHER", "n/a"))
+    logger.info("Modelo Editorial:     %s", os.getenv("MODEL_FACTCHECKER", "n/a"))
     logger.info("=" * 60)
 
     # Arrancar agentes iniciais antes do scheduler (warm-up)
