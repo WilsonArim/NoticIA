@@ -536,7 +536,7 @@ Deno.serve(async (req: Request) => {
         );
 
         // Step 3: Call Ollama Cloud to generate chronicle
-        const LLM_TIMEOUT_MS = 60_000;
+        const LLM_TIMEOUT_MS = 120_000;
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
 
@@ -551,7 +551,7 @@ Deno.serve(async (req: Request) => {
                 "Content-Type": "application/json",
               },
               body: JSON.stringify({
-                model: "nemotron-3-super:cloud",
+                model: "gpt-oss:120b-cloud",
                 messages: [
                   { role: "system", content: cronista.systemPrompt },
                   { role: "user", content: briefing },
@@ -566,7 +566,7 @@ Deno.serve(async (req: Request) => {
         } catch (fetchErr) {
           clearTimeout(timeout);
           if (fetchErr instanceof DOMException && fetchErr.name === "AbortError") {
-            console.error("[cronista] LLM request timed out after 60s");
+            console.error("[cronista] LLM request timed out after 120s");
             return jsonResponse({ error: "LLM request timed out" }, 504, req);
           }
           throw fetchErr;
@@ -622,7 +622,7 @@ Deno.serve(async (req: Request) => {
             period_end: periodEndStr,
             status: "draft",
             metadata: {
-              model: "nemotron-3-super:cloud",
+              model: "gpt-oss:120b-cloud",
               provider: "ollama",
               articles_count: articlesList.length,
               period_days: periodDays,
