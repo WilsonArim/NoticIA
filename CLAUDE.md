@@ -8,15 +8,42 @@ This project uses the SOTA Skills system for structured, phase-based development
 
 1. `SKILLS/claude.md` — Routing rules, phase classifier, and priority tiers
 2. `SKILLS/ARCHITECTURE.md` — Complete map of all skills and routing matrix
+3. `SKILLS/SECURITY/SECURITY.md` — Security posture, defense-in-depth layers, and security skills
 
 **How it works:**
 
-- Phase 0 skills are ALWAYS active (planning, debugging, linting, git, kaizen)
+- Phase 0 skills are ALWAYS active (planning, debugging, linting, git, kaizen, secrets-management)
+- Security skills are activated automatically when infrastructure, deploy, or security keywords are detected
+- `secrets-management` is ALWAYS active (Phase 0) — secrets discipline applies to every task
 - Other skills are activated automatically based on the request type and keywords
 - See `SKILLS/claude.md` Section 3 (Router) for the full routing logic
 - **Profession skill `professions/news-curator/SKILL.md`** is ALWAYS active — this is a news curation project
 
 **Skill files location:** Each skill lives in `SKILLS/<skill-name>/SKILL.md`
+**Security skills location:** `SKILLS/SECURITY/<skill-name>/SKILL.md`
+
+---
+
+## Security Posture
+
+This project follows a **defense-in-depth** security model with 8 layers.
+See `SKILLS/SECURITY/SECURITY.md` for the complete security framework.
+
+**Always-active security rules:**
+- Never commit secrets, API keys, tokens, or credentials to version control
+- All secrets live in `.env` (which is in `.gitignore`) — use `.env.example` for documentation
+- Pre-commit hooks must include secret detection (gitleaks or truffleHog)
+- Every deploy must pass the Security-by-Default Checklist (see SECURITY.md)
+
+**Security skills (8):**
+- `SECURITY/secrets-management` — Phase 0, ALWAYS active
+- `SECURITY/threat-modeling` — Phase 2 (Architecture)
+- `SECURITY/compliance-privacy` — Phase 2 (Architecture)
+- `SECURITY/supply-chain-security` — Phase 5 (Quality)
+- `SECURITY/infrastructure-hardening` — Phase 6 (Deploy)
+- `SECURITY/devsecops-pipeline` — Phase 6 (Deploy)
+- `SECURITY/incident-response` — Phase 6 (Deploy)
+- `SECURITY/production-readiness` — Phase 6 (Deploy, AUTO on every DEPLOY request)
 
 ---
 
@@ -52,6 +79,11 @@ Curate high-quality, fact-checked Portuguese news with minimal human interventio
 - **SSH Key:** `~/.ssh/oracle_noticia.key`
 - **Process Manager:** systemd (3 services)
 - **Supabase Project:** `ljozolszasxppianyaac`
+- **SSH:** Ed25519 key-only auth (password auth disabled)
+- **Protection:** Fail2Ban (SSH jail, 3 retries, 1h ban)
+- **Reverse Proxy:** Nginx with rate limiting + security headers
+- **Monitoring:** healthcheck.sh (5min), backup.sh (daily 3h), db_cleanup.sh (weekly)
+- **Swap:** 4GB swapfile (vm.swappiness=10)
 
 ---
 
@@ -126,9 +158,19 @@ articles (status='published')
 ```
 ~/noticia/
 ├── CLAUDE.md                          → This file (project instructions)
-├── SKILLS/                            → SOTA Skills system (37 skills)
+├── SKILLS/                            → SOTA Skills system (45 skills + 1 profession)
 │   ├── claude.md                      → Router configuration
 │   ├── ARCHITECTURE.md                → Skills map & routing matrix
+│   ├── SECURITY/                      → Security framework (8 skills)
+│   │   ├── SECURITY.md               → Master security document
+│   │   ├── secrets-management/        → Phase 0, ALWAYS active
+│   │   ├── threat-modeling/           → Phase 2
+│   │   ├── compliance-privacy/        → Phase 2
+│   │   ├── supply-chain-security/     → Phase 5
+│   │   ├── infrastructure-hardening/  → Phase 6
+│   │   ├── devsecops-pipeline/        → Phase 6
+│   │   ├── incident-response/         → Phase 6
+│   │   └── production-readiness/      → Phase 6, AUTO on DEPLOY
 │   └── <skill-name>/SKILL.md          → Individual skill files
 │
 ├── pipeline/                          → Python backend pipeline
@@ -165,6 +207,13 @@ articles (status='published')
 │   └── .venv/                         → Bot virtual environment
 │
 ├── telegram-collector/                → Telegram source collector
+│
+├── scripts/                           → Operational scripts
+│   ├── healthcheck.sh                 → Service health monitoring (every 5 min)
+│   ├── backup.sh                      → Daily backup at 3am (30-day retention)
+│   └── db_cleanup.sh                  → Weekly DB cleanup (Sundays 4am)
+│
+├── .github/workflows/ci.yml          → CI pipeline (lint + validate)
 │
 ├── src/                               → Next.js frontend
 │   ├── lib/supabase/                  → Supabase client, types, middleware
@@ -241,6 +290,7 @@ idx_intake_queue_title_hash ON intake_queue(title_hash)
 - PR required for merge to `main`
 - All tests must pass before merge
 - **CRITICAL:** Never commit `.env` files or API keys
+- Signed commits recommended (see `SKILLS/SECURITY/supply-chain-security/SKILL.md`)
 
 ---
 
@@ -289,13 +339,24 @@ python -m openclaw.scheduler_ollama
 ## Known Issues & Technical Debt
 
 - [ ] No automated tests (test suite exists but is empty)
-- [ ] No CI/CD pipeline (manual deploys via SSH)
-- [ ] No monitoring/alerting (relies on manual log checks)
-- [ ] No backup strategy for Supabase data
-- [ ] No swap configured on Oracle VM
-- [ ] Fail2Ban installed but inactive
+- [ ] CI pipeline validates but does not auto-deploy (manual deploy via SSH)
 - [ ] `triagem.py` is deprecated but still in codebase
 - [ ] Frontend and pipeline share the same repo (monorepo without proper tooling)
+- [ ] Services run in venvs, not Docker containers (production-readiness skill recommends containerization)
+- [ ] No structured logging (plain text logs)
+- [ ] No centralized log shipping
+
+### Resolved (March 2026 Audit)
+- [x] ~~No monitoring/alerting~~ → healthcheck.sh (5min) + Telegram alerts
+- [x] ~~No backup strategy~~ → backup.sh (daily 3am, 30-day retention)
+- [x] ~~No swap configured~~ → 4GB swapfile, vm.swappiness=10
+- [x] ~~Fail2Ban inactive~~ → SSH jail active (3 retries, 1h ban)
+- [x] ~~PAT exposed in git remote~~ → SSH key auth (Ed25519), PAT revoked
+- [x] ~~No CI/CD pipeline~~ → GitHub Actions CI (lint + validate)
+- [x] ~~No rate limiting~~ → Nginx rate limiting + security headers
+- [x] ~~SSH password auth enabled~~ → Key-only, PermitRootLogin no, MaxAuthTries 3
+- [x] ~~No DB cleanup~~ → db_cleanup.sh (weekly, Supabase REST API)
+- [x] ~~.gitignore incomplete~~ → Updated with NoticIA-specific exclusions
 
 ---
 

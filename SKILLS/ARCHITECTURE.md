@@ -8,12 +8,13 @@
 ## Visao Geral
 
 ```
-Total de Skills: 37 + 1 Profession
+Total de Skills: 45 + 1 Profession (37 core + 8 security)
 Fases: 7 (0-6)
-Skills Fase 0 (sempre ativas): 8
-Skills sob demanda: 29
+Skills Fase 0 (sempre ativas): 9 (8 core + secrets-management)
+Skills sob demanda: 36
 Professions: 1 (news-curator — SEMPRE ATIVA)
-Workflows: 3
+Workflows: 6 (3 core + 3 security)
+Security Framework: SECURITY/ (8 skills + SECURITY.md)
 ```
 
 ---
@@ -32,6 +33,7 @@ Workflows: 3
 | Verification Before Completion | `verification-before-completion/` | Gate obrigatorio antes de declarar "done" |
 | Dispatching Parallel Agents | `dispatching-parallel-agents/` | Orquestracao de sub-agentes em paralelo |
 | Enforcement Layer | `enforcement-layer/` | Garante invocacao obrigatoria de skills |
+| **Secrets Management** | **`SECURITY/secrets-management/`** | **Disciplina de segredos — SEMPRE ATIVA** |
 
 ### PROFESSION — News Curator (SEMPRE ATIVA)
 
@@ -57,6 +59,8 @@ Workflows: 3
 | Database Design | `database-design/` | Schema design, normalizacao, ORM |
 | API Patterns | `api-patterns/` | REST vs GraphQL vs tRPC |
 | SOTA Agent Engineering | `sota-agent-engineering/` | Arquitectura de agentes autonomos SOTA |
+| **Threat Modeling** | **`SECURITY/threat-modeling/`** | **STRIDE, attack surface, mitigacoes** |
+| **Compliance & Privacy** | **`SECURITY/compliance-privacy/`** | **GDPR, RGPD, privacy-by-design** |
 
 ### FASE 3 — Backend
 
@@ -87,6 +91,7 @@ Workflows: 3
 | Vibe Code Auditor | `vibe-code-auditor/` | Qualidade com scoring deterministico |
 | Performance Engineer | `performance-engineer/` | Otimizacao de performance |
 | E2E Testing Patterns | `e2e-testing-patterns/` | Testes end-to-end fiaveis |
+| **Supply Chain Security** | **`SECURITY/supply-chain-security/`** | **Dependencias, lockfiles, signed commits** |
 
 ### FASE 6 — Deploy & Manutencao
 
@@ -97,6 +102,30 @@ Workflows: 3
 | Commit | `commit/` | Conventional commits |
 | Create PR | `create-pr/` | PRs com contexto para review |
 | Changelog Automation | `changelog-automation/` | Release notes consistentes |
+| **Infrastructure Hardening** | **`SECURITY/infrastructure-hardening/`** | **SSH, firewall, TLS, fail2ban** |
+| **DevSecOps Pipeline** | **`SECURITY/devsecops-pipeline/`** | **CI/CD seguro, SAST, scanning** |
+| **Incident Response** | **`SECURITY/incident-response/`** | **Playbooks, post-mortem, recuperacao** |
+| **Production Readiness** | **`SECURITY/production-readiness/`** | **Gate proativo: containerizacao, CI/CD, monitoring, backups — AUTO em DEPLOY** |
+
+---
+
+## Mapa de Seguranca
+
+### Cobertura por Camada (Defense-in-Depth)
+
+| Camada | Skill Responsavel | Fase |
+|--------|-------------------|------|
+| Segredos & Credenciais | **SECURITY/secrets-management** | 0 (SEMPRE ATIVA) |
+| Modelacao de Ameacas | **SECURITY/threat-modeling** | 2 |
+| Compliance & Privacidade | **SECURITY/compliance-privacy** | 2 |
+| Cadeia de Fornecimento | **SECURITY/supply-chain-security** | 5 |
+| Infraestrutura | **SECURITY/infrastructure-hardening** | 6 |
+| Pipeline CI/CD | **SECURITY/devsecops-pipeline** | 6 |
+| Resposta a Incidentes | **SECURITY/incident-response** | 6 |
+| Production Readiness | **SECURITY/production-readiness** | **6 (AUTO em DEPLOY)** |
+
+### Documento Mestre
+`SECURITY/SECURITY.md` — Framework completo de defense-in-depth, Security-by-Default Checklist, e guia de integracao.
 
 ---
 
@@ -115,6 +144,8 @@ ARQUITETURA:
   database|schema|ORM|SQL|Prisma      → database-design
   API|REST|GraphQL|tRPC|endpoint      → api-patterns
   agente|agent|autonomo|pipeline|orchestration|MCP → sota-agent-engineering
+  ameaca|threat|STRIDE|attack surface → SECURITY/threat-modeling
+  GDPR|RGPD|privacidade|compliance   → SECURITY/compliance-privacy
 
 BACKEND:
   backend|servidor|Node|Express|Python → backend-dev-guidelines, senior-fullstack
@@ -133,13 +164,20 @@ QUALIDADE:
   qualidade|audit|score               → vibe-code-auditor
   performance|lento|otimizar|CWV      → performance-engineer
   e2e|Playwright|Cypress              → e2e-testing-patterns
+  dependencia|lockfile|npm-audit|pip-audit → SECURITY/supply-chain-security
 
 DEPLOY:
   Docker|container|imagem             → docker-expert
-  deploy|producao|rollout|CI/CD       → deployment-procedures
+  deploy|producao|rollout|CI/CD       → deployment-procedures, **SECURITY/devsecops-pipeline**, **SECURITY/production-readiness (AUTO)**
   commit|mensagem                     → commit
   PR|pull-request|merge               → create-pr
   changelog|release|versao            → changelog-automation
+  SSH|firewall|TLS|fail2ban|hardening → SECURITY/infrastructure-hardening
+  incidente|breach|post-mortem|recuperacao → SECURITY/incident-response
+
+SECURE (NOVO):
+  segredo|secret|.env|API-key|token|credencial → SECURITY/secrets-management (SEMPRE ATIVA)
+  security-audit|pentest|hardening    → SECURITY/infrastructure-hardening, security-auditor
 
 ENFORCEMENT (SEMPRE ATIVO):
   done|completo|pronto|terminado|feito → verification-before-completion
@@ -179,7 +217,7 @@ NOTICIA (SEMPRE ATIVO — Profession: news-curator):
   "Alguma skill se aplica? 1% chance = MUST invoke"
        │
        ▼
-[Fase 0 — SEMPRE ATIVA (8 skills)]
+[Fase 0 — SEMPRE ATIVA (9 skills: 8 core + secrets-management)]
   concise-planning
   systematic-debugging
   lint-and-validate
@@ -188,6 +226,7 @@ NOTICIA (SEMPRE ATIVO — Profession: news-curator):
   verification-before-completion
   dispatching-parallel-agents
   enforcement-layer
+  SECURITY/secrets-management
        │
        ▼
 [Profession — SEMPRE ATIVA]
@@ -195,7 +234,7 @@ NOTICIA (SEMPRE ATIVO — Profession: news-curator):
        │
        ▼
 [Classificar Request]
-  Tipo: IDEA | PLAN | BUILD | FIX | TEST | DEPLOY | REFACTOR | REVIEW | ADAPT
+  Tipo: IDEA | PLAN | BUILD | FIX | TEST | DEPLOY | REFACTOR | REVIEW | ADAPT | SECURE
        │
        ▼
 [Identificar Fase(s)]
@@ -204,6 +243,16 @@ NOTICIA (SEMPRE ATIVO — Profession: news-curator):
        ▼
 [Selecionar Skills]
   Dentro de cada fase, ativar por relevancia
+       │
+       ▼
+[SECURITY GATE]                        ← para requests tipo DEPLOY
+  Se o request e DEPLOY: verificar Security-by-Default Checklist
+  (ver SECURITY/SECURITY.md)
+       │
+       ▼
+[PRODUCTION READINESS GATE]            ← AUTO em DEPLOY
+  SECURITY/production-readiness verifica: containers, CI/CD,
+  monitoring, backups, process management, DB producao
        │
        ▼
 [Executar com Skills Ativas]
@@ -250,11 +299,26 @@ Roles: collector, dispatcher, reporter, fact_checker, auditor (deprecated),
 ### Professions (`professions/`)
 - `professions/news-curator/SKILL.md` — Curadoria de noticias AI (SEMPRE ATIVA)
 
+### SECURITY (`SECURITY/`)
+Framework de seguranca com 8 skills e documento mestre:
+- `SECURITY/SECURITY.md` — Guia mestre, defense-in-depth, checklists
+- `SECURITY/secrets-management/SKILL.md` — Fase 0, sempre ativa
+- `SECURITY/threat-modeling/SKILL.md` — Fase 2
+- `SECURITY/compliance-privacy/SKILL.md` — Fase 2
+- `SECURITY/supply-chain-security/SKILL.md` — Fase 5
+- `SECURITY/infrastructure-hardening/SKILL.md` — Fase 6
+- `SECURITY/devsecops-pipeline/SKILL.md` — Fase 6
+- `SECURITY/incident-response/SKILL.md` — Fase 6
+- `SECURITY/production-readiness/SKILL.md` — Fase 6, AUTO em DEPLOY
+
 ### Workflows (`workflows/`)
 Sequencias pre-definidas de skills:
 - `workflows/brainstorm.md` — Ideacao completa
 - `workflows/plan.md` — Planeamento tecnico
 - `workflows/debug.md` — Debug sistematico
+- `workflows/security-audit.md` — Auditoria de seguranca completa
+- `workflows/harden.md` — Hardening de infraestrutura
+- `workflows/incident.md` — Resposta a incidentes
 
 ---
 

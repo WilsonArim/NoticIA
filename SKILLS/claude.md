@@ -17,6 +17,8 @@
 7. **Verificar antes de declarar "done"** — evidencia fresca obrigatoria (verification-before-completion)
 8. **Skills sao lei, nao sugestao** — 1% de chance de aplicar = invocacao obrigatoria (enforcement-layer)
 9. **PT-PT obrigatorio** — Artigos e outputs editoriais sempre em Portugues Europeu, nunca PT-BR
+10. **secrets-management esta SEMPRE ativa** — disciplina de segredos aplica-se a todas as tarefas
+11. **Ler SECURITY/SECURITY.md** — framework de seguranca obrigatorio para requests DEPLOY e SECURE
 
 ### Prioridade (Tier 2 — Forte)
 1. Manter codigo limpo e tipado (Python type hints / TypeScript strict)
@@ -24,6 +26,7 @@
 3. Testar antes de deployar
 4. Documentar decisoes arquiteturais
 5. `.env` e a fonte de verdade para modelos — nunca hardcodar
+6. **Nunca commitar segredos** — .env no .gitignore, gitleaks no pre-commit
 
 ### Prioridade (Tier 3 — Preferencial)
 1. Preferir composicao sobre heranca
@@ -31,6 +34,7 @@
 3. Preferir pre-filtragem deterministica sobre LLM (pipeline)
 4. Preferir batch LLM sobre chamadas individuais
 5. Preferir fallback gracioso sobre crash (eventos voltam ao pool)
+6. **Preferir signed commits** (ver SECURITY/supply-chain-security)
 
 ---
 
@@ -56,6 +60,7 @@ REQUEST → [Classificar Tipo] → [Identificar Fase] → [Selecionar Skills] �
 | `REVIEW` | Code review, PR review, audit | 5, 6 |
 | `ADAPT` | Adicionar/remover/alterar funcionalidade mid-project | Depende |
 | `EDITORIAL` | Ajustar pipeline editorial, modelos, prompts, classificacao | 0, 3 + news-curator |
+| `SECURE` | Seguranca, hardening, auditoria, incidentes | 0, 2, 5, 6 + SECURITY skills |
 
 ---
 
@@ -65,13 +70,15 @@ REQUEST → [Classificar Tipo] → [Identificar Fase] → [Selecionar Skills] �
 
 ```
 1. ENFORCEMENT CHECK: Verificar se alguma skill se aplica (1% chance = obrigatorio)
-2. SEMPRE ativar: Fase 0 (8 skills essenciais — ver lista abaixo)
+2. SEMPRE ativar: Fase 0 (9 skills: 8 essenciais + secrets-management)
 3. SEMPRE ativar: Profession news-curator
 4. Classificar o request (ver tabela acima)
 5. Identificar a(s) fase(s) relevante(s)
-6. Dentro de cada fase, selecionar skills por keywords (ver ARCHITECTURE.md)
-7. Aplicar as skills selecionadas
-8. VERIFICATION GATE: Antes de declarar "done", evidencia fresca obrigatoria
+6. Se request = DEPLOY: ativar SECURITY GATE (checklist de seguranca pre-deploy)
+6b. Se request = DEPLOY: ativar PRODUCTION READINESS GATE (containers, CI/CD, monitoring, backups)
+7. Dentro de cada fase, selecionar skills por keywords (ver ARCHITECTURE.md)
+8. Aplicar as skills selecionadas
+9. VERIFICATION GATE: Antes de declarar "done", evidencia fresca obrigatoria
 ```
 
 ### Routing por Keywords
@@ -97,7 +104,7 @@ REQUEST → [Classificar Tipo] → [Identificar Fase] → [Selecionar Skills] �
 | performance, lento, otimizar, Core Web Vitals, tokens, batch | performance-engineer, **news-curator** |
 | e2e, Playwright, Cypress, integracao | e2e-testing-patterns |
 | Docker, container, imagem | docker-expert |
-| deploy, producao, rollout, CI/CD, systemd, Oracle | deployment-procedures |
+| deploy, producao, rollout, CI/CD, systemd, Oracle | deployment-procedures, **SECURITY/devsecops-pipeline**, **SECURITY/production-readiness (AUTO)** |
 | commit, mensagem commit | commit |
 | PR, pull request, merge | create-pr |
 | changelog, release notes, versao | changelog-automation |
@@ -110,6 +117,13 @@ REQUEST → [Classificar Tipo] → [Identificar Fase] → [Selecionar Skills] �
 | Ollama, modelo, batch, tokens, quality gate | **news-curator**, sota-agent-engineering |
 | Supabase, intake_queue, raw_events, articles | **news-curator**, database-design |
 | Telegram, bot, Diretor Elite | **news-curator** |
+| segredo, secret, .env, API-key, token, credencial | **SECURITY/secrets-management** (SEMPRE ATIVA) |
+| ameaca, threat, STRIDE, attack surface | **SECURITY/threat-modeling** |
+| GDPR, RGPD, privacidade, compliance, dados pessoais | **SECURITY/compliance-privacy** |
+| dependencia, lockfile, npm-audit, pip-audit, supply chain | **SECURITY/supply-chain-security** |
+| SSH, firewall, TLS, fail2ban, hardening | **SECURITY/infrastructure-hardening** |
+| CI/CD seguro, SAST, scanning, pipeline seguranca | **SECURITY/devsecops-pipeline** |
+| incidente, breach, post-mortem, recuperacao | **SECURITY/incident-response** |
 
 ---
 
@@ -126,6 +140,7 @@ Skills que se aplicam a TODAS as interacoes, independentemente do contexto.
 - **verification-before-completion**: Gate obrigatorio antes de declarar "done"
 - **dispatching-parallel-agents**: Orquestracao de sub-agentes em paralelo
 - **enforcement-layer**: Garante invocacao obrigatoria de skills relevantes
+- **SECURITY/secrets-management**: Disciplina de segredos — nunca commitar .env, keys, tokens
 
 ### Profession — News Curator (SEMPRE ATIVA)
 Skill de profissao que se aplica a TODAS as interacoes neste projecto.
@@ -137,6 +152,7 @@ Ativada quando o utilizador esta a explorar ideias ou planear.
 
 ### Fase 2 — Arquitetura & Design
 Ativada quando se esta a definir a estrutura do sistema.
+Inclui: **SECURITY/threat-modeling** e **SECURITY/compliance-privacy**.
 
 ### Fase 3 — Backend
 Ativada durante implementacao de logica servidor (Python pipeline ou Node.js).
@@ -146,9 +162,11 @@ Ativada durante implementacao de interfaces (Next.js + Tailwind).
 
 ### Fase 5 — Qualidade & Auditoria
 Ativada para testes, reviews, e auditoria.
+Inclui: **SECURITY/supply-chain-security**.
 
 ### Fase 6 — Deploy & Manutencao
 Ativada para deployment (systemd, Oracle VM) e operacoes.
+Inclui: **SECURITY/infrastructure-hardening**, **SECURITY/devsecops-pipeline**, **SECURITY/incident-response**, e **SECURITY/production-readiness** (AUTO em todos os DEPLOY).
 
 ---
 
@@ -177,6 +195,9 @@ Quando o utilizador pede mudancas a meio do projeto:
 | "Melhora o fact-checking" | Ativa news-curator + backend-dev-guidelines (F3) |
 | "Adiciona novo agente" | Ativa news-curator + sota-agent-engineering (F2) + database-design (F2) |
 | "Frontend: nova pagina de artigo" | Ativa frontend-developer (F4) + react-best-practices (F4) + news-curator |
+| "Prepara para deploy" | Ativa docker-expert (F6) + deployment-procedures (F6) + **SECURITY/devsecops-pipeline** (F6) + **SECURITY/production-readiness** (F6, AUTO) |
+| "Auditoria de seguranca" | Ativa security-auditor (F5) + **SECURITY/infrastructure-hardening** (F6) + **SECURITY/secrets-management** (F0) |
+| "Harden o servidor" | Ativa **SECURITY/infrastructure-hardening** (F6) + deployment-procedures (F6) |
 
 ---
 
@@ -205,6 +226,9 @@ Workflows sao sequencias pre-definidas de skills. Vivem em `workflows/`.
 | `/plan` | Do plano a arquitetura | concise-planning → senior-architect → architecture-patterns → database-design |
 | `/debug` | Debug sistematico | systematic-debugging → lint-and-validate → test-driven-development |
 | `/pipeline` | Audit do pipeline NoticIA | news-curator → performance-engineer → vibe-code-auditor → verification-before-completion |
+| `/security-audit` | Auditoria de seguranca completa | secrets-management → infrastructure-hardening → supply-chain-security → devsecops-pipeline |
+| `/harden` | Hardening de infraestrutura | infrastructure-hardening → devsecops-pipeline → production-readiness |
+| `/incident` | Resposta a incidentes | incident-response → infrastructure-hardening → secrets-management |
 
 ---
 
@@ -217,7 +241,7 @@ Quando ativas skills, segue este formato mental (nao precisas mostrar ao utiliza
 Request: "..."
 Tipo: BUILD
 Fases: 0, 3, Profession
-Skills ativas: concise-planning, news-curator, backend-dev-guidelines, sota-agent-engineering
+Skills ativas: concise-planning, secrets-management, news-curator, backend-dev-guidelines, sota-agent-engineering
 ```
 
 Depois responde normalmente, aplicando o conhecimento das skills ativas.
