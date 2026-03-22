@@ -338,21 +338,22 @@ python -m openclaw.scheduler_ollama
 
 ## Known Issues & Technical Debt
 
-- [ ] No automated tests (test suite exists but is empty)
-- [ ] CI pipeline validates but does not auto-deploy (manual deploy via SSH)
-- [ ] `triagem.py` is deprecated but still in codebase
-- [ ] Frontend and pipeline share the same repo (monorepo without proper tooling)
-- [x] ~~Services run in venvs, not Docker containers~~ → Docker Compose with healthchecks, resource limits, auto-restart
-- [ ] No structured logging (plain text logs)
-- [ ] No centralized log shipping
+No open issues at this time.
 
 ### Resolved (March 2026 Audit)
+- [x] ~~No automated tests~~ → 80 unit tests (pytest): dispatcher, fact-checker, escritor, models
+- [x] ~~CI validates but no auto-deploy~~ → GitHub Actions CI/CD with SSH deploy on push to main
+- [x] ~~`triagem.py` deprecated in codebase~~ → Removed; injetor.py patched to skip triagem
+- [x] ~~Monorepo without tooling~~ → Makefile with 18 targets (up/down/test/lint/deploy/logs/health)
+- [x] ~~Services run in venvs, not Docker containers~~ → Docker Compose with healthchecks, resource limits, auto-restart
+- [x] ~~No structured logging~~ → JSON structured logging (openclaw.logging_config) with JsonFormatter
+- [x] ~~No centralized log shipping~~ → RotatingFileHandler → /var/log/noticia/pipeline.jsonl (10MB × 5 rotation)
 - [x] ~~No monitoring/alerting~~ → healthcheck.sh (5min) + Telegram alerts
 - [x] ~~No backup strategy~~ → backup.sh (daily 3am, 30-day retention)
 - [x] ~~No swap configured~~ → 4GB swapfile, vm.swappiness=10
 - [x] ~~Fail2Ban inactive~~ → SSH jail active (3 retries, 1h ban)
 - [x] ~~PAT exposed in git remote~~ → SSH key auth (Ed25519), PAT revoked
-- [x] ~~No CI/CD pipeline~~ → GitHub Actions CI (lint + validate)
+- [x] ~~No CI/CD pipeline~~ → GitHub Actions CI (lint + validate + deploy)
 - [x] ~~No rate limiting~~ → Nginx rate limiting + security headers
 - [x] ~~SSH password auth enabled~~ → Key-only, PermitRootLogin no, MaxAuthTries 3
 - [x] ~~No DB cleanup~~ → db_cleanup.sh (weekly, Supabase REST API)

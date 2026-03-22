@@ -1,8 +1,11 @@
 """
 Agente Injetor — Pipeline express para notícias manuais.
 
-Recebe URL + metadados via CLI, executa triagem → fact-check → escrita
+Recebe URL + metadados via CLI, executa fact-check → escrita
 de forma síncrona e imediata, sem esperar pelos ciclos do scheduler.
+
+Nota: Triagem (FASE 1) foi removida — injecção manual salta directamente
+para fact-check, pois o utilizador já fornece área e prioridade.
 
 USO:
     cd pipeline
@@ -40,16 +43,12 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from supabase import create_client  # noqa: E402
-
-from openclaw.agents.triagem import _classify_item  # noqa: E402
 from openclaw.agents.fact_checker import _check_item, _apply_verdict  # noqa: E402
 from openclaw.agents.escritor import _escrever_artigo, _publicar_artigo  # noqa: E402
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s [injetor] %(message)s",
-    datefmt="%H:%M:%S",
-)
+from openclaw.logging_config import setup_logging  # noqa: E402
+
+setup_logging()
 logger = logging.getLogger("injetor")
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
@@ -88,7 +87,8 @@ def run_injetor(url: str, titulo: str = "", resumo: str = "", area: str = "mundo
         _executar_pipeline(supabase, item)
         return
 
-    # 2. Inserir nova notícia na fila
+    # 2. Inserir nova notícia na fila — directamente como auditor_approved
+    #    (injecção manual salta triagem: utilizador já fornece área e prioridade)
     titulo_final = titulo or url
     logger.info("Injetor: inserindo '%s'", titulo_final[:70])
 
@@ -98,17 +98,18 @@ def run_injetor(url: str, titulo: str = "", resumo: str = "", area: str = "mundo
         "url": url,
         "area": area,
         "score": 0.95,        # injecção manual = prioridade máxima no batch
-        "status": "pending",
+        "status": "auditor_approved",
         "priority": prioridade,
         "language": "pt",
         "metadata": {
             "source_agent": "manual",
             "injetado_em": datetime.now(timezone.utc).isoformat(),
+            "triagem_notes": "Injecção manual — triagem dispensada",
         },
     }).execute()
 
     item = result.data[0]
-    logger.info("Inserido com id=%s. A iniciar pipeline...", item["id"])
+    logger.info("Inserido com id=%s (auditor_approved). A iniciar pipeline...", item["id"])
     _executar_pipeline(supabase, item)
 
 
@@ -119,40 +120,21 @@ def _executar_pipeline(supabase, item: dict):
     item_id = item["id"]
     status = item.get("status", "pending")
 
-    # ── FASE 1: Triagem ──────────────────────────────────────────────────
+    # ── FASE 1: Aprovação automática (injecção manual) ───────────────────
     if status == "pending":
         logger.info("")
-        logger.info("══ FASE 1 — Triagem (DeepSeek V3.2) ══════════════════════════")
-
-        triagem_result = _classify_item(item)
-
-        if triagem_result.get("rejeitar"):
-            motivo = triagem_result.get("notas", "Rejeitado pela triagem")
-            supabase.table("intake_queue").update({
-                "status": "auditor_failed",
-                "error_message": motivo,
-            }).eq("id", item_id).execute()
-            logger.warning("Triagem REJEITOU: %s", motivo)
-            logger.info("Pipeline terminado — artigo rejeitado na triagem.")
-            return
-
-        nova_area = triagem_result.get("area", item.get("area", "mundo"))
-        novo_score = triagem_result.get("score", item.get("score", 0.5))
+        logger.info("══ FASE 1 — Aprovação automática (injecção manual) ════════════")
 
         supabase.table("intake_queue").update({
             "status": "auditor_approved",
-            "area": nova_area,
-            "score": novo_score,
             "metadata": {
                 **(item.get("metadata") or {}),
-                "triagem_notes": triagem_result.get("notas", ""),
+                "triagem_notes": "Injecção manual — triagem dispensada",
             },
         }).eq("id", item_id).execute()
 
-        logger.info(
-            "Triagem APROVADA ✓  área=%s | score=%.2f | nota: %s",
-            nova_area, novo_score, triagem_result.get("notas", "")[:80],
-        )
+        logger.info("Triagem dispensada ✓  (injecção manual com área=%s, prioridade=%s)",
+                     item.get("area", "mundo"), item.get("priority", "p1"))
 
         # Re-fetch com dados actualizados
         item = supabase.table("intake_queue").select("*").eq("id", item_id).single().execute().data
@@ -215,7 +197,7 @@ def _executar_pipeline(supabase, item: dict):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="NoticIA — Injectar notícia manual no pipeline (triagem → fact-check → escrita)",
+        description="NoticIA — Injectar notícia manual no pipeline (fact-check → escrita)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""Exemplos:
   python -m openclaw.agents.injetor --url "https://fatf-gafi.org/..." --area geopolitica

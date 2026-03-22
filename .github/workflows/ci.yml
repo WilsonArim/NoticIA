@@ -1,4 +1,4 @@
-name: CI
+name: CI/CD
 
 on:
   push:
@@ -52,8 +52,8 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt 2>/dev/null || true
-          pip install ruff mypy
+          pip install -r requirements-docker.txt 2>/dev/null || true
+          pip install ruff mypy pytest
 
       - name: Lint with ruff
         run: ruff check src/
@@ -62,5 +62,30 @@ jobs:
         run: mypy src/openclaw --ignore-missing-imports --no-strict-optional || true
         continue-on-error: true
 
+      - name: Run tests
+        run: pytest src/openclaw/tests/ -v --tb=short
+        env:
+          PYTHONPATH: src
+
       - name: Syntax validation
         run: python -m py_compile src/openclaw/agents/dispatcher.py && python -m py_compile src/openclaw/scheduler_ollama.py && echo "All core files compile OK"
+
+  deploy:
+    needs: [validate-frontend, validate-pipeline]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Deploy to Oracle VM
+        uses: appleboy/ssh-action@v1
+        with:
+          host: 82.70.84.122
+          username: ubuntu
+          key: ${{ secrets.ORACLE_SSH_KEY }}
+          script: |
+            cd ~/noticia
+            git pull origin main
+            docker compose build --quiet
+            docker compose up -d
+            docker compose ps
+            echo "Deploy complete at $(date)"

@@ -1,1 +1,1 @@
-"""Ollama Cloud agents — triagem, fact-checker, dossiê, escritor."""
+"""Ollama Cloud agents — dispatcher, fact-checker, escritor."""

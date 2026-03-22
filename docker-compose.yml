@@ -8,6 +8,9 @@ services:
     env_file: ./pipeline/.env
     environment:
       - PYTHONPATH=/app/src
+      - LOG_DIR=/var/log/noticia
+    volumes:
+      - /var/log/noticia:/var/log/noticia
     healthcheck:
       test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
       interval: 60s

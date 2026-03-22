@@ -41,10 +41,9 @@ from openclaw.agents.dispatcher import run_dispatcher
 from openclaw.agents.fact_checker import run_fact_checker
 from openclaw.agents.escritor import run_escritor
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(name)s %(levelname)s %(message)s",
-)
+from openclaw.logging_config import setup_logging  # noqa: E402
+
+setup_logging()
 logger = logging.getLogger(__name__)
 
 
