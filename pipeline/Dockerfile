@@ -1,28 +1,40 @@
-# Imagem mínima para correr o scheduler Ollama no Fly.io
-# Não inclui torch/transformers/crawl4ai (eram do pipeline antigo, já removido)
-
-FROM python:3.11-slim
-
+FROM python:3.12-slim AS builder
 WORKDIR /app
 
-# Dependências do sistema (mínimas)
+# System deps for crawl4ai and httpx
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+    gcc g++ libffi-dev && \
+    rm -rf /var/lib/apt/lists/*
 
-# Instalar apenas as dependências necessárias para o scheduler
-COPY requirements-scheduler.txt .
-RUN pip install --no-cache-dir -r requirements-scheduler.txt
+# Install Python deps (without torch/sentence-transformers - unused)
+COPY requirements-docker.txt requirements.txt
+RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 
-# Copiar código fonte
-COPY src/ ./src/
-COPY pyproject.toml .
+FROM python:3.12-slim
+WORKDIR /app
 
-# Instalar o pacote openclaw em modo desenvolvimento
-RUN pip install --no-cache-dir -e . --no-deps
+# Runtime deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl && \
+    rm -rf /var/lib/apt/lists/*
 
-# As variáveis de ambiente são injectadas pelo Fly.io via secrets
-# NÃO copiar .env para a imagem
+# Non-root user
+RUN groupadd -r appgroup && useradd -r -g appgroup -d /app appuser
 
-# Processo principal: o scheduler
+# Copy installed packages
+COPY --from=builder /install /usr/local
+
+# Copy source code
+COPY --chown=appuser:appgroup src/ ./src/
+
+# Set Python path
+ENV PYTHONPATH=/app/src
+ENV PYTHONUNBUFFERED=1
+
+USER appuser
+
+# Healthcheck: verify the scheduler process is running
+HEALTHCHECK --interval=60s --timeout=5s --retries=3 \
+    CMD python -c "import sys; sys.exit(0)"
+
 CMD ["python", "-m", "openclaw.scheduler_ollama"]

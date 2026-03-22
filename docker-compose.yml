@@ -1,0 +1,89 @@
+services:
+  pipeline:
+    build:
+      context: ./pipeline
+      dockerfile: Dockerfile
+    container_name: noticia-pipeline
+    restart: unless-stopped
+    env_file: ./pipeline/.env
+    environment:
+      - PYTHONPATH=/app/src
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: "2.0"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    networks:
+      - noticia
+
+  telegram-bot:
+    build:
+      context: ./telegram-bot
+      dockerfile: Dockerfile
+    container_name: noticia-diretor-elite
+    restart: unless-stopped
+    env_file: ./telegram-bot/.env
+    user: "1000:1000"
+    working_dir: /app/data
+    volumes:
+      - ./telegram-bot:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - noticia
+
+  telegram-collector:
+    build:
+      context: ./telegram-collector
+      dockerfile: Dockerfile
+    container_name: noticia-telegram-collector
+    restart: unless-stopped
+    env_file: ./telegram-collector/.env
+    user: "1000:1000"
+    volumes:
+      - ./telegram-collector/sessions:/app/sessions
+      - ./telegram-collector/invalid_channels.txt:/app/invalid_channels.txt
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - noticia
+
+networks:
+  noticia:
+    driver: bridge

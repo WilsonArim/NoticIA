@@ -1,0 +1,14 @@
+.git/
+node_modules/
+.next/
+*.session
+.env*
+venv/
+.venv/
+__pycache__/
+*.pyc
+SKILLS/
+scripts/
+docs/
+archive/
+PROMPTS/

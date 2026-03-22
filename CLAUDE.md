@@ -77,7 +77,7 @@ Curate high-quality, fact-checked Portuguese news with minimal human interventio
 ### Infrastructure
 - **VM:** Oracle Cloud ARM64 (ubuntu@82.70.84.122)
 - **SSH Key:** `~/.ssh/oracle_noticia.key`
-- **Process Manager:** systemd (3 services)
+- **Process Manager:** Docker Compose (3 containers) + systemd auto-start
 - **Supabase Project:** `ljozolszasxppianyaac`
 - **SSH:** Ed25519 key-only auth (password auth disabled)
 - **Protection:** Fail2Ban (SSH jail, 3 retries, 1h ban)
@@ -316,10 +316,10 @@ python -m openclaw.scheduler_ollama
 
 ### Deploying Changes
 1. SSH into VM
-2. `cd ~/noticia && git pull` (or scp files directly)
-3. For pipeline: `sudo systemctl restart noticia-pipeline`
-4. For telegram-bot: `sudo systemctl restart noticia-diretor-elite`
-5. Verify logs: `sudo journalctl -u <service> -f`
+2. `cd ~/noticia && git pull`
+3. Rebuild: `docker compose build`
+4. Restart: `docker compose up -d`
+5. Verify: `docker compose ps && docker compose logs --tail 20`
 
 ---
 
@@ -342,7 +342,7 @@ python -m openclaw.scheduler_ollama
 - [ ] CI pipeline validates but does not auto-deploy (manual deploy via SSH)
 - [ ] `triagem.py` is deprecated but still in codebase
 - [ ] Frontend and pipeline share the same repo (monorepo without proper tooling)
-- [ ] Services run in venvs, not Docker containers (production-readiness skill recommends containerization)
+- [x] ~~Services run in venvs, not Docker containers~~ → Docker Compose with healthchecks, resource limits, auto-restart
 - [ ] No structured logging (plain text logs)
 - [ ] No centralized log shipping
 
