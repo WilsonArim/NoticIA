@@ -293,6 +293,8 @@ async def collect_cycle() -> dict:
         "inserted": 0,
         "errors": 0,
         "flood_wait": False,
+        "flood_wait_seconds": 0,
+        "flood_channels": 0,
     }
 
     messages_to_insert: list[dict] = []
@@ -376,7 +378,17 @@ async def collect_cycle() -> dict:
                         )
                         _record_invalid_channel(handle, f"FloodWait_{e.seconds}s")
                         stats["flood_wait"] = True
+                        stats["flood_wait_seconds"] = max(stats["flood_wait_seconds"], e.seconds)
+                        stats["flood_channels"] += 1
                         stats["errors"] += 1
+
+                        # GLOBAL BACK-OFF: if >10 channels hit flood-wait, abort cycle early
+                        if stats["flood_channels"] >= 10:
+                            logger.warning(
+                                "GLOBAL FLOOD-WAIT detected (%d channels, max %ds) — aborting cycle early",
+                                stats["flood_channels"], stats["flood_wait_seconds"],
+                            )
+                            break
 
                 except (ChannelPrivateError, UsernameNotOccupiedError, UsernameInvalidError) as e:
                     reason = type(e).__name__
@@ -497,6 +509,20 @@ async def main() -> None:
 
         except Exception as e:
             logger.error("Cycle failed: %s", e, exc_info=True)
+
+        # If global flood-wait was detected, sleep for the flood duration instead of normal interval
+        if stats.get("flood_channels", 0) >= 10 and stats.get("flood_wait_seconds", 0) > 0:
+            wait_secs = min(stats["flood_wait_seconds"], 7200)  # cap at 2 hours
+            logger.warning(
+                "Global flood-wait: sleeping %d seconds (%.1f hours) before next cycle",
+                wait_secs, wait_secs / 3600,
+            )
+            try:
+                await asyncio.wait_for(_shutdown.wait(), timeout=wait_secs)
+                break
+            except asyncio.TimeoutError:
+                logger.info("Flood-wait sleep complete, resuming collection")
+                continue
 
         # Wait for next cycle (or shutdown)
         try:

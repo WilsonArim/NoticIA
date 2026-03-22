@@ -40,6 +40,8 @@ load_dotenv()
 from openclaw.agents.dispatcher import run_dispatcher
 from openclaw.agents.fact_checker import run_fact_checker
 from openclaw.agents.escritor import run_escritor
+from openclaw.collector_runner import run_collectors
+from openclaw.engenheiro_pipeline import run_pipeline_health
 
 from openclaw.logging_config import setup_logging  # noqa: E402
 
@@ -109,6 +111,15 @@ def sync_models_to_supabase() -> None:
 
 scheduler = BackgroundScheduler(job_defaults={"misfire_grace_time": 120})
 
+# ── Camada 1 — Collectors (RSS + GDELT) ──────────────────────────────────
+# Cada 15 min: recolhe de 23+ RSS feeds e GDELT API, insere em raw_events
+scheduler.add_job(
+    run_collectors,
+    IntervalTrigger(minutes=15),
+    id="collectors",
+    max_instances=1,
+)
+
 # ── Camada 2 — Dispatcher V2 (dedup + filtro + batch LLM + quality gate) ──
 # Cada 5 min: lê raw_events, filtra sem LLM, classifica em batch
 scheduler.add_job(
@@ -136,6 +147,15 @@ scheduler.add_job(
     max_instances=1,
 )
 
+# ── Camada 5 — Engenheiro de Pipeline (watchdog) ────────────────────────
+# Cada 30 min: sonda todos os estágios, detecta anomalias, alerta
+scheduler.add_job(
+    run_pipeline_health,
+    IntervalTrigger(minutes=30),
+    id="pipeline_health",
+    max_instances=1,
+)
+
 
 if __name__ == "__main__":
     logger.info("=" * 60)
@@ -152,11 +172,13 @@ if __name__ == "__main__":
     sync_models_to_supabase()
 
     # Arrancar agentes iniciais antes do scheduler (warm-up)
+    logger.info("Warm-up: collectors (RSS + GDELT)...")
+    run_collectors()
     logger.info("Warm-up: dispatcher V2 (primeiro batch de raw_events)...")
     run_dispatcher()
 
     scheduler.start()
-    logger.info("Scheduler activo. Jobs: dispatcher(5m) | fact_checker(25m) | escritor(30m)")
+    logger.info("Scheduler activo. Jobs: collectors(15m) | dispatcher(5m) | fact_checker(25m) | escritor(30m) | pipeline_health(30m)")
 
     try:
         while True:
