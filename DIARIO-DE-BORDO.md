@@ -718,3 +718,66 @@ As cronicas semanais dos 10 cronistas nao foram publicadas para a semana de 22/M
 - 10/10 cronicas publicadas para semana 16-23/Mar
 - Automacao semanal configurada (domingos 10:00 UTC)
 - Proxima execucao automatica: domingo 30/Mar 10:00 UTC
+
+---
+
+## 2026-03-23 15:00 — V3 Contra-Media: Pivot Completo
+
+### Contexto
+Wilson decidiu reorientar o NoticIA de canal de noticias generico para plataforma contra-media.
+Objectivo: auditar media, desmascarar vies e omissoes, cobrir noticias ignoradas pelo mainstream.
+
+### Alteracoes (4 fases implementadas numa sessao)
+
+**Fase 1 — Fundacao (DB + routing)**
+- Migracao DB: source_type (raw_events), vertente/bias_verdict/media_audit (intake_queue), article_type (articles)
+- collector_runner.py: marca source_type='media' (RSS/GDELT) ou 'alternative' (Telegram)
+- dispatcher.py: propaga source_type para vertente na intake_queue (media_watch/alt_news/editorial)
+- RPC publish_article_with_sources: aceita article_type no payload
+
+**Fase 2 — FC Dual-Mode**
+- fact_checker.py: 3 modos por vertente:
+  - media_watch: audita honestidade, framing, omissoes (busca o OUTRO LADO)
+  - alt_news: verificacao rigorosa (exige 3+ fontes independentes)
+  - editorial: verifica factos de injecoes manuais do Wilson
+- Grava bias_verdict (bias_type, omitted_facts, counter_narrative) e media_audit (publish_recommendation)
+
+**Fase 3 — Decisor Editorial + Escritor V3**
+- editorial_decisor.py (NOVO): gate deterministico entre FC e escritor
+  - Noticia dos media sem vies → DESCARTA (nao nos interessa)
+  - Vies detectado → expose
+  - Omissao detectada → artigo de omissao
+  - Ambiguo → wilson_review via Telegram
+- escritor.py: 6 templates de escrita (expose, omissao, alt-news, fact-check, editorial, standard)
+- Status flow: auditor_approved → FC → approved → Decisor → ready_to_write → Escritor → published
+
+**Fase 4 — Injector Manual + Detector de Omissoes**
+- bot.py: /injecta URL [contexto] — Wilson injeta URLs via Telegram
+- coverage_analyzer.py (NOVO): cada 6h cruza media vs alternativo, detecta gaps
+- scheduler: 8 jobs (collectors, dispatcher, FC, decisor, escritor, health, coverage, cronistas)
+
+### Ficheiros alterados (7 modificados, 2 criados)
+- pipeline/src/openclaw/collector_runner.py — source_type
+- pipeline/src/openclaw/agents/dispatcher.py — vertente routing
+- pipeline/src/openclaw/agents/fact_checker.py — dual-mode completo
+- pipeline/src/openclaw/agents/fact_checker_parallel.py — vertente logging
+- pipeline/src/openclaw/agents/escritor.py — 6 templates
+- pipeline/src/openclaw/scheduler_ollama.py — 8 jobs
+- telegram-bot/bot.py — /injecta command
+- pipeline/src/openclaw/agents/editorial_decisor.py (NOVO)
+- pipeline/src/openclaw/agents/coverage_analyzer.py (NOVO)
+
+### Deploy
+- Docker containers reiniciados (pipeline, bot, telegram-collector)
+- Pipeline V3 activo com 8 jobs no scheduler
+- Commit cafd165 pushed para GitHub
+
+### Modelos activos
+- Dispatcher: gpt-oss:20b (routing rapido)
+- FC: mistral-large-3:675b (sem vies chines)
+- Escritor: mistral-large-3:675b
+- Cronistas: gemma3:27b
+
+### Estado
+Pipeline V3 em producao. Primeiros resultados do FC dual-mode e do decisor editorial
+serao visiveis nos proximos ciclos (~40 min para pipeline completo).
