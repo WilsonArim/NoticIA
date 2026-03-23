@@ -781,3 +781,45 @@ Objectivo: auditar media, desmascarar vies e omissoes, cobrir noticias ignoradas
 ### Estado
 Pipeline V3 em producao. Primeiros resultados do FC dual-mode e do decisor editorial
 serao visiveis nos proximos ciclos (~40 min para pipeline completo).
+
+
+---
+
+## 2026-03-23 16:15 — V3 Documentacao e Engenheiro Actualizado
+
+### Contexto
+Apos implementar o V3 Contra-Media, era necessario actualizar toda a documentacao e o engenheiro de pipeline para reflectir a nova arquitectura.
+
+### Alteracoes
+
+**Engenheiro Pipeline V3** (engenheiro_pipeline.py — reescrito)
+- 7 sondas (antes eram 5): collectors, dispatcher, fact_checker, editorial_decisor, escritor, coverage_analyzer, backlog
+- Novas metricas V3: bias_verdict/media_audit preenchimento, taxa de descarte, wilson_review acumulado, distribuicao por vertente, artigos por article_type
+- Novos diagnosticos: vertente routing activo, campos V3 preenchidos, cobertura analyzer correndo, taxa de descarte anormal
+- Diario de bordo com metricas V3 completas
+- Alertas Telegram com contexto V3
+
+**CLAUDE.md V3** (reescrito por completo)
+- Missao actualizada: contra-media, nao noticias genericas
+- Pipeline architecture V3 completo (8 jobs, 3 vertentes, decisor, 6 templates)
+- Tabela de modelos actualizada (mistral-large-3 no FC, sem modelos chineses)
+- Schema DB com colunas V3 (source_type, vertente, bias_verdict, media_audit, article_type)
+- Status flow V3 documentado (ready_to_write, discarded, wilson_review)
+- File structure com novos ficheiros (editorial_decisor.py, coverage_analyzer.py)
+- Docker rebuild warning (docker compose restart NAO reconstroi imagens)
+
+**Fix DB Constraints** (migracao Supabase)
+- intake_queue_status_check: adicionados 'ready_to_write', 'discarded', 'wilson_review'
+- pipeline_runs_stage_check: adicionados 'editorial_decisor', 'coverage_analyzer'
+- pipeline_runs_status_check: adicionado 'completed_with_errors'
+- Estes constraints estavam a bloquear o decisor editorial (20/20 erros por ciclo)
+
+### Ficheiros alterados
+- CLAUDE.md — reescrito V3
+- pipeline/src/openclaw/engenheiro_pipeline.py — reescrito V3
+- Supabase: migracao v3_update_check_constraints
+
+### Estado
+- Pipeline V3 a correr com constraints corrigidos
+- Decisor editorial vai funcionar no proximo ciclo
+- Engenheiro V3 vai monitorizar todos os estagios correctamente
