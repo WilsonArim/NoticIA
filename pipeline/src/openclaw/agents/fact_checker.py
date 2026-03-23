@@ -599,7 +599,18 @@ def _apply_verdict(supabase, item: dict, verdict: dict):
         logger.warning("Fact-checker: STALE '%s' — %s", item.get("title", "")[:50], motivo_stale)
         return
 
-    aprovado = verdict.get("aprovado", False) and certainty >= 0.70
+    # V3: O FC verifica factos. O Decisor Editorial decide publicacao.
+    # Para media_watch/alt_news/editorial: se certainty >= 0.70, SEMPRE aprovar
+    # para que o Decisor possa tomar a decisao editorial com bias_verdict.
+    # O LLM retorna aprovado=false para items sem vies, mas isso nao significa
+    # que o fact-check falhou — significa que NAO ha vies para expor.
+    vertente = item.get("vertente", "media_watch")
+    if vertente in ("media_watch", "alt_news", "editorial"):
+        # V3: aprovar se o FC conseguiu verificar (certainty >= 0.70)
+        aprovado = certainty >= 0.70
+    else:
+        # Fallback: logica original para items sem vertente V3
+        aprovado = verdict.get("aprovado", False) and certainty >= 0.70
 
     # ── Filtrar fontes com ano errado no URL ──────────────────────────────
     fontes_raw = verdict.get("fontes_encontradas", [])
