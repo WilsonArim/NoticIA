@@ -82,10 +82,19 @@ def _run_sector(sector: str, areas: list[str]) -> dict:
             try:
                 verdict = _check_item(item)
                 _apply_verdict(sb, item, verdict)
-                if verdict.get("aprovado") and float(verdict.get("certainty_score", 0)) >= 0.70:
-                    stats["approved"] += 1
+                # V3: match approval logic in _apply_verdict — certainty >= 0.70 = approved
+                certainty = float(verdict.get("certainty_score", 0))
+                vertente = item.get("vertente", "media_watch")
+                if vertente in ("media_watch", "alt_news", "editorial"):
+                    if certainty >= 0.70:
+                        stats["approved"] += 1
+                    else:
+                        stats["rejected"] += 1
                 else:
-                    stats["rejected"] += 1
+                    if verdict.get("aprovado") and certainty >= 0.70:
+                        stats["approved"] += 1
+                    else:
+                        stats["rejected"] += 1
             except Exception as e:
                 logger.error("FC [%s] erro item %s: %s", sector, item.get("id", "?"), e)
                 stats["errors"] += 1
