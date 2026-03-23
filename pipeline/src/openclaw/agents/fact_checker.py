@@ -292,73 +292,88 @@ def run_fact_checker():
 
 
 def _check_item(item: dict) -> dict:
-    metadata = item.get("metadata") or {}
-    is_dossie = metadata.get("source_agent") == "dossie"
-    n_searches = 3 if is_dossie else 1
+    """V3 dual-mode fact-checker: routes by vertente."""
+    vertente = item.get("vertente", "media_watch")
+
+    if vertente == "media_watch":
+        return _check_item_media_audit(item)
+    elif vertente == "alt_news":
+        return _check_item_alt_news(item)
+    elif vertente == "editorial":
+        return _check_item_editorial(item)
+    else:
+        return _check_item_media_audit(item)  # fallback
+
+
+def _check_item_media_audit(item: dict) -> dict:
+    """V3 MEDIA WATCH: Audit media honesty, framing, omissions."""
     hoje = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
-    system = f"""És um fact-checker jornalístico rigoroso. A tua missão é verificar factos com pesquisa real.
-Hoje é {hoje}.
+    system = f"""Es um auditor de media do NoticIA. A tua missao NAO e verificar se a noticia e verdade.
+A tua missao e AUDITAR se os media contam a historia de forma COMPLETA e HONESTA.
+Hoje e {hoje}.
 
 REGRAS FUNDAMENTAIS:
-1. Bias NÃO é medido por linguagem forte. É medido por suporte factual.
-   - "O Irão executa cidadãos" → pesquisa → confirma com dados reais → bias BAIXO
-   - "X aconteceu" → pesquisa → nenhuma fonte confirma → bias ALTO (afirmação sem suporte)
-2. Usa web_search para verificar as afirmações principais do artigo.
-   - Este artigo {"É de dossiê investigativo: faz EXATAMENTE 3 pesquisas dirigidas, uma por afirmação principal." if is_dossie else "é um artigo normal: faz 1 pesquisa composta que cubra as afirmações principais."}
-3. Procura sempre fontes primárias: relatórios oficiais, dados governamentais, ONG credenciadas (HRW, Amnesty, FATF, UN, bancos centrais).
-4. Uma notícia que a imprensa mainstream ignora NÃO é falsa por isso. Verifica com fontes primárias.
-5. Se o resultado da pesquisa vier de provider "serper_google", lê o campo "warning" e aplica o aviso — desvaloriza media mainstream.
-6. DATAS DAS FONTES — CRÍTICO: Inclui em "fontes_encontradas" APENAS URLs que cobrem o evento ACTUAL.
-   - Um artigo da BBC de 2022 sobre "Zelenskyy no Parlamento" NÃO verifica um evento de {hoje}.
-   - Se encontrares cobertura de evento semanticamente similar mas de outro ano, IGNORA essa fonte.
-   - Inclui SEMPRE o ano de {hoje[:4]} nas tuas queries de pesquisa para forçar resultados recentes.
-7. Responde sempre em JSON válido no final.
-8. SCORING GRANULAR — OBRIGATÓRIO: Os teus scores (certainty_score, bias_score) devem reflectir a avaliação EXACTA deste artigo. NUNCA uses múltiplos de 0.05 (como 0.90, 0.85, 0.10, 0.15). Usa valores precisos como 0.87, 0.93, 0.11, 0.08. Cada artigo é único — os seus scores devem ser únicos."""
+1. Uma noticia pode ser factualmente correcta MAS ter vies por omissao, framing, ou seleccao de dados.
+2. Procura SEMPRE o OUTRO LADO da historia com web_search.
+3. Compara como DIFERENTES fontes cobrem o mesmo evento.
+4. Procura dados PRIMARIOS (governos, institutos, ONG) que contradizem ou complementam a narrativa.
+5. Uma noticia que omite factos relevantes e tao enviesada como uma que mente.
 
-    user = f"""Verifica este artigo com pesquisa real:
+ANALISA:
+1. FACTOS - Os dados apresentados sao correctos?
+2. FRAMING - Linguagem carregada? Um lado e o "bom" e o outro o "mau"?
+3. OMISSAO - Que factos relevantes faltam? Que contexto e omitido?
+4. FONTES CITADAS - Quem e citado? Quem DEVERIA ser citado mas nao e?
+5. DADOS vs NARRATIVA - Fontes primarias contradizem a narrativa?
+6. COBERTURA ASSIMETRICA - Os media deram a este evento a atencao proporcional ao seu impacto?
 
-TÍTULO: {item.get("title", "")}
-CONTEÚDO: {item.get("content", "")[:1000]}
-FONTE ORIGINAL: {item.get("url", "")}
-DATA: {item.get("received_at", "desconhecida")}
-TIPO: {"DOSSIÊ INVESTIGATIVO — requer 3 pesquisas dirigidas" if is_dossie else "Artigo normal — 1 pesquisa composta suficiente"}
+USA web_search PARA:
+- Procurar o OUTRO LADO da historia
+- Procurar dados primarios/oficiais sobre o tema
+- Procurar se outros media contam de forma diferente
+- Procurar se fontes alternativas reportam factos omitidos
 
-PROCESSO:
-1. Identifica as {n_searches} afirmações {"mais importantes, uma por pesquisa" if is_dossie else "principais e formula 1 query composta"}
-2. {"Faz 1 web_search por afirmação (total: 3 chamadas)" if is_dossie else "Faz 1 web_search com query composta em inglês"}
-3. Avalia com GRANULARIDADE (usa decimais exactos, NUNCA multiplos de 0.05):
+SCORING GRANULAR (NUNCA multiplos de 0.05):
+certainty_score: confianca nos factos APRESENTADOS (pode ser alta mesmo com vies)
+bias_score: grau de vies detectado (0.0=neutro, 1.0=propaganda)
 
-   certainty_score — baseado na qualidade e quantidade de fontes:
-   - 0.96-1.00: 3+ fontes primárias oficiais independentes confirmam (raríssimo)
-   - 0.91-0.95: 2 fontes primárias + contexto confirma
-   - 0.86-0.90: 1 fonte primária + 1-2 fontes secundárias
-   - 0.80-0.85: Fontes secundárias apenas (agências, media credível)
-   - 0.70-0.79: 1 fonte credível sem corroboração
-   - <0.70: Não aprovado
-
-   bias_score — baseado em desvio factual (0.0=neutro perfeito):
-   - 0.01-0.06: Factos puros, sem adjectivação, múltiplas perspectivas
-   - 0.07-0.12: Ligeiro enquadramento editorial, factos correctos
-   - 0.13-0.19: Perspectiva dominante mas factos suportados
-   - 0.20-0.30: Viés evidente, omissão de contra-argumentos
-   - >0.30: Propaganda ou desinformação
-
-   IMPORTANTE: Calcula o score EXACTO para este artigo específico. Cada artigo é diferente.
-   Exemplos: 0.87, 0.93, 0.11, 0.08, 0.14 — NUNCA uses 0.90, 0.95, 0.10, 0.05, 0.85.
-   
-   - frescura (o evento aconteceu nos últimos 7 dias? se não, nota a data real)
-4. Devolve JSON final:
-
+DEVOLVE JSON:
 {{
   "aprovado": true,
-  "certainty_score": 0.87,
-  "bias_score": 0.08,
-  "veracidade": "confirmado",
+  "factos_correctos": true,
+  "certainty_score": 0.XX,
+  "bias_score": 0.XX,
+  "bias_type": "none|framing|omission|selective_data|asymmetric|propaganda",
+  "omitted_facts": ["facto omitido 1", "facto omitido 2"],
+  "counter_narrative": "O que os media nao dizem e...",
+  "veracidade": "confirmado|parcial|falso",
   "fontes_encontradas": ["url1", "url2"],
-  "data_real_evento": "2026-03-15",
-  "notas": "Confirmado por relatório FATF 2025 e dados do Banco Central. Certainty 0.87 porque fonte primária (FATF) confirma directamente + 1 fonte secundária (Reuters). Bias 0.08 porque enquadramento é factual mas inclui ligeira ênfase editorial no título."
-}}"""
+  "data_real_evento": "2026-03-XX",
+  "publish_recommendation": "expose|omission|discard|needs_review",
+  "notas": "Explicacao detalhada da auditoria"
+}}
+
+REGRAS DE publish_recommendation:
+- "expose": vies significativo detectado (bias_score > 0.20) OU omissoes graves
+- "omission": factos correctos MAS omissao significativa de contexto
+- "discard": noticia factualmente correcta, sem vies significativo, sem omissoes — NAO nos interessa
+- "needs_review": ambiguo, precisa de revisao humana"""
+
+    user = f"""AUDITA esta noticia dos media:
+
+TITULO: {item.get("title", "")}
+CONTEUDO: {item.get("content", "")[:1200]}
+FONTE ORIGINAL: {item.get("url", "")}
+AREA: {item.get("area", "")}
+DATA: {item.get("received_at", "desconhecida")}
+
+PROCESSO:
+1. Identifica as afirmacoes principais
+2. Faz 1-2 web_search para encontrar o OUTRO LADO e dados primarios
+3. Avalia honestidade, completude, e framing
+4. Decide: expose, omission, discard, ou needs_review
+5. Devolve JSON final"""
 
     response = chat_with_tools(
         model=MODEL,
@@ -368,12 +383,138 @@ PROCESSO:
         tool_executor=execute_tool,
     )
 
+    return _parse_fc_response(response)
+
+
+def _check_item_alt_news(item: dict) -> dict:
+    """V3 ALT-NEWS: Rigorous verification of alternative sources. Needs 3+ independent sources."""
+    hoje = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    metadata = item.get("metadata") or {}
+    is_dossie = metadata.get("source_agent") == "dossie"
+    n_searches = 3 if is_dossie else 2
+
+    system = f"""Es um fact-checker rigoroso do NoticIA. Esta noticia vem de fonte ALTERNATIVA (Telegram, redes sociais).
+Hoje e {hoje}.
+
+REGRAS FUNDAMENTAIS — VERIFICACAO RIGOROSA:
+1. Fontes alternativas precisam de verificacao EXTRA. Ha muita verdade mas tambem muito lixo.
+2. Precisa de 3+ fontes INDEPENDENTES para aprovacao. Sem 3 fontes → rejeita (certainty < 0.70).
+3. Procura SEMPRE fontes primarias: relatorios oficiais, dados governamentais, ONG credenciadas.
+4. Uma noticia que a imprensa mainstream ignora NAO e falsa por isso. Verifica com fontes primarias.
+5. Se o evento e real mas sem fontes suficientes, marca como needs_review (para Wilson verificar manualmente).
+
+SCORING GRANULAR (NUNCA multiplos de 0.05):
+certainty_score (threshold MAIS ALTO para alt-news):
+- 0.93-1.00: 3+ fontes primarias independentes (aprovacao forte)
+- 0.85-0.92: 2 fontes primarias + contexto confirma
+- 0.70-0.84: 1 fonte credivel — aprovacao condicional
+- <0.70: NAO APROVADO (fontes insuficientes)
+
+bias_score: baseado em suporte factual (0.0=neutro):
+- 0.01-0.10: Factos puros, bem documentados
+- 0.11-0.20: Ligeiro enquadramento, factos correctos
+- >0.20: Vies evidente ou sem suporte factual
+
+Faz {n_searches} web_search para verificar as afirmacoes principais.
+
+DEVOLVE JSON:
+{{
+  "aprovado": true/false,
+  "certainty_score": 0.XX,
+  "bias_score": 0.XX,
+  "veracidade": "confirmado|parcial|nao_verificavel|falso",
+  "fontes_encontradas": ["url1", "url2", "url3"],
+  "data_real_evento": "2026-03-XX",
+  "publish_recommendation": "alt_news|needs_review|discard",
+  "notas": "..."
+}}"""
+
+    user = f"""VERIFICA RIGOROSAMENTE esta noticia de fonte alternativa:
+
+TITULO: {item.get("title", "")}
+CONTEUDO: {item.get("content", "")[:1200]}
+FONTE: {item.get("url", "")}
+AREA: {item.get("area", "")}
+DATA: {item.get("received_at", "desconhecida")}
+
+PROCESSO:
+1. Identifica as afirmacoes principais
+2. Faz {n_searches} web_search procurando fontes INDEPENDENTES
+3. Conta quantas fontes independentes confirmam (precisa de 3+ para aprovacao)
+4. Devolve JSON final"""
+
+    response = chat_with_tools(
+        model=MODEL,
+        system=system,
+        user=user,
+        tools=TOOLS,
+        tool_executor=execute_tool,
+    )
+
+    return _parse_fc_response(response)
+
+
+def _check_item_editorial(item: dict) -> dict:
+    """V3 EDITORIAL: Verify facts for Wilson's manual injections. Respects editorial priority."""
+    hoje = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    system = f"""Es um fact-checker do NoticIA. O editor-chefe humano (Wilson) submeteu esta noticia manualmente.
+Hoje e {hoje}.
+
+REGRAS:
+1. RESPEITA a prioridade editorial — Wilson considera esta noticia relevante.
+2. Verifica os FACTOS, nao a relevancia (essa ja foi decidida por Wilson).
+3. Se os factos sao verificaveis → aprova com certainty adequada.
+4. Se nao verificaveis → marca needs_review (NAO rejeita automaticamente).
+5. Procura fontes primarias para corroborar.
+
+SCORING GRANULAR (NUNCA multiplos de 0.05):
+certainty_score: confianca nos factos (threshold normal)
+bias_score: vies do conteudo original
+
+DEVOLVE JSON:
+{{
+  "aprovado": true/false,
+  "certainty_score": 0.XX,
+  "bias_score": 0.XX,
+  "veracidade": "confirmado|parcial|nao_verificavel",
+  "fontes_encontradas": ["url1", "url2"],
+  "data_real_evento": "2026-03-XX",
+  "publish_recommendation": "editorial|fact_check|needs_review",
+  "notas": "..."
+}}"""
+
+    user = f"""VERIFICA esta noticia submetida pelo editor-chefe:
+
+TITULO: {item.get("title", "")}
+CONTEUDO: {item.get("content", "")[:1200]}
+FONTE: {item.get("url", "")}
+AREA: {item.get("area", "")}
+
+Faz 1-2 web_search para confirmar os factos. Devolve JSON final."""
+
+    response = chat_with_tools(
+        model=MODEL,
+        system=system,
+        user=user,
+        tools=TOOLS,
+        tool_executor=execute_tool,
+    )
+
+    return _parse_fc_response(response)
+
+
+def _parse_fc_response(response: str) -> dict:
+    """Parse JSON from FC response, handling various formats."""
     start = response.find("{")
     end = response.rfind("}") + 1
     if start >= 0 and end > start:
-        return json.loads(response[start:end])
+        try:
+            return json.loads(response[start:end])
+        except json.JSONDecodeError:
+            pass
 
-    return {"aprovado": False, "certainty_score": 0.0, "notas": "Falha a parsear resposta"}
+    return {"aprovado": False, "certainty_score": 0.0, "notas": "Falha a parsear resposta FC"}
 
 
 def _extract_year_from_url(url: str) -> int | None:
@@ -484,11 +625,24 @@ def _apply_verdict(supabase, item: dict, verdict: dict):
         "model": MODEL,
     }
 
+    # V3: save bias_verdict and media_audit for the editorial decisor
+    bias_verdict_data = {
+        "bias_type": verdict.get("bias_type", "none"),
+        "omitted_facts": verdict.get("omitted_facts", []),
+        "counter_narrative": verdict.get("counter_narrative", ""),
+    }
+    media_audit_data = {
+        "publish_recommendation": verdict.get("publish_recommendation", "discard"),
+        "factos_correctos": verdict.get("factos_correctos", True),
+    }
+
     update: dict = {
         "status": "approved" if aprovado else "fact_check",
         "fact_check_summary": fact_check_summary,
         "bias_score": bias,
         "bias_analysis": bias_analysis,
+        "bias_verdict": bias_verdict_data,
+        "media_audit": media_audit_data,
     }
 
     if not aprovado:

@@ -5,11 +5,12 @@ Interface conversacional entre Wilson e a Equipa Elite de Investigação.
 V2: Orquestra agentes REAIS (Reporter, FC Forense, Escritor) em vez de simular.
 
 Comandos:
-  /investiga [tema] — Inicia investigação com pipeline completo
-  /status           — Status da investigação em curso
-  /relatorio        — Ver último relatório completo
-  /arquivo          — Listar investigações anteriores
-  [texto livre]     — Conversa com o Diretor (modo consultivo)
+  /investiga [tema]       — Inicia investigação com pipeline completo
+  /injecta URL [contexto] — V3: Injecta URL na pipeline contra-media (editorial_injection)
+  /status                 — Status da investigação em curso
+  /relatorio              — Ver último relatório completo
+  /arquivo                — Listar investigações anteriores
+  [texto livre]           — Conversa com o Diretor (modo consultivo)
 """
 import asyncio
 import logging
@@ -22,6 +23,13 @@ from openai import OpenAI
 from telethon import TelegramClient, events
 
 load_dotenv()
+
+import hashlib
+import re
+try:
+    import httpx
+except ImportError:
+    httpx = None
 
 # Add current dir to path for elite modules
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -175,6 +183,103 @@ async def handle_message(event):
             active_investigations.pop(chat_id, None)
         return
 
+    # ── Command: /injecta (V3) ───────────────────────────────────────
+    if text.lower().startswith("/injecta"):
+        args = text[len("/injecta"):].strip()
+        if not args:
+            await event.respond(
+                "Uso: /injecta URL [contexto opcional]\n\n"
+                "Exemplos:\n"
+                "  /injecta https://exemplo.com/noticia\n"
+                "  /injecta https://exemplo.com/noticia Ataque contra cristãos no Níger"
+            )
+            return
+
+        # Parse URL and optional context
+        parts = args.split(None, 1)
+        url = parts[0]
+        contexto = parts[1] if len(parts) > 1 else ""
+
+        if not url.startswith("http"):
+            await event.respond("⚠️ O primeiro argumento deve ser um URL válido (http/https).")
+            return
+
+        await event.respond(f"📥 A processar injecção editorial...\nURL: {url}")
+
+        try:
+            # Try to fetch content from URL
+            title = contexto or url
+            content_text = ""
+
+            if httpx is not None:
+                try:
+                    resp = httpx.get(url, timeout=15, follow_redirects=True)
+                    resp.raise_for_status()
+                    html_text = resp.text
+
+                    # Basic title extraction
+                    import re as re_mod
+                    title_match = re_mod.search(r'<title[^>]*>(.*?)</title>', html_text, re_mod.IGNORECASE | re_mod.DOTALL)
+                    if title_match and not contexto:
+                        title = title_match.group(1).strip()[:200]
+
+                    # Basic content extraction (strip tags)
+                    body_match = re_mod.search(r'<body[^>]*>(.*?)</body>', html_text, re_mod.IGNORECASE | re_mod.DOTALL)
+                    if body_match:
+                        raw = re_mod.sub(r'<[^>]+>', ' ', body_match.group(1))
+                        content_text = re_mod.sub(r'\s+', ' ', raw).strip()[:3000]
+                except Exception as fetch_err:
+                    logger.warning("Injecta: falha a extrair conteudo de %s: %s", url, fetch_err)
+                    content_text = contexto or "Conteudo nao extraido automaticamente"
+
+            if not content_text:
+                content_text = contexto or "Conteudo nao extraido automaticamente"
+
+            # Insert directly into raw_events with source_type='editorial_injection'
+            from supabase import create_client as sc
+            sb = sc(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+
+            event_hash = hashlib.sha256(f"{url}:editorial_injection".encode()).hexdigest()
+            title_normalized = re.sub(r"\s+", " ", title.lower().strip())
+            title_hash = hashlib.md5(title_normalized.encode()).hexdigest()
+
+            row = {
+                "event_hash": event_hash,
+                "title": title[:500],
+                "title_hash": title_hash,
+                "content": content_text[:5000],
+                "url": url,
+                "source_collector": "editorial_injection",
+                "source_type": "editorial_injection",
+                "raw_metadata": {
+                    "injected_by": "wilson",
+                    "contexto": contexto,
+                    "via": "telegram_bot",
+                    "injected_at": datetime.now(timezone.utc).isoformat(),
+                },
+                "processed": False,
+            }
+
+            result = sb.table("raw_events").upsert(
+                row, on_conflict="event_hash", ignore_duplicates=False
+            ).execute()
+
+            if result.data:
+                await event.respond(
+                    f"✅ Injectado na pipeline!\n\n"
+                    f"📰 *Titulo:* {title[:100]}\n"
+                    f"🏷️ *Tipo:* editorial_injection\n"
+                    f"📋 *Proximo passo:* Dispatcher → FC → Decisor → Escritor\n\n"
+                    f"O artigo será processado nos proximos ~40 minutos."
+                )
+            else:
+                await event.respond("⚠️ Inserção não retornou dados. Pode ser duplicado.")
+
+        except Exception as e:
+            logger.error("Injecta falhou: %s", e)
+            await event.respond(f"❌ Falha na injecção: {str(e)[:200]}")
+        return
+
     # ── Command: /status ─────────────────────────────────────────────
     if text.lower().startswith("/status"):
         if chat_id in active_investigations:
@@ -270,7 +375,7 @@ async def main():
     await bot.start(bot_token=BOT_TOKEN)
     me = await bot.get_me()
     logger.info("=" * 50)
-    logger.info("Diretor Elite V2 Bot online: @%s", me.username)
+    logger.info("Diretor Elite V3 Bot online: @%s", me.username)
     logger.info("Modelo conversacional: %s", MODEL)
     logger.info("Pipeline: Reporter → FC Forense → Escritor")
     if WILSON_ID:

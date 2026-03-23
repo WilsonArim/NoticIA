@@ -408,7 +408,7 @@ def run_dispatcher() -> dict[str, int]:
     # 1. Buscar raw_events por processar
     result = (
         supabase.table("raw_events")
-        .select("id, title, content, url, source_collector, published_at, created_at, raw_metadata")
+        .select("id, title, content, url, source_collector, published_at, created_at, raw_metadata, source_type")
         .eq("processed", False)
         .order("published_at", desc=True)
         .limit(BATCH_SIZE)
@@ -516,6 +516,15 @@ def run_dispatcher() -> dict[str, int]:
                     reasoning = cls.get("reasoning", "")
                     t_hash = event.get("_title_hash", _title_hash(event.get("title", "")))
 
+                    # V3: map source_type → vertente for contra-media routing
+                    _source_type = event.get("source_type", "media")
+                    _vertente_map = {
+                        "media": "media_watch",
+                        "alternative": "alt_news",
+                        "editorial_injection": "editorial",
+                    }
+                    _vertente = _vertente_map.get(_source_type, "media_watch")
+
                     for category in valid_categories:
                         intake_rows.append({
                             "source_event_id": event["id"],
@@ -528,13 +537,15 @@ def run_dispatcher() -> dict[str, int]:
                             "status": "auditor_approved",  # quality gate já feito
                             "language": "pt",
                             "title_hash": t_hash,
+                            "vertente": _vertente,
                             "metadata": {
                                 "source_collector": event.get("source_collector", ""),
+                                "source_type": _source_type,
                                 "dispatcher_reasoning": reasoning,
                                 "data_real_evento": str(data_real) if data_real else "",
                                 "all_categories": valid_categories,
                                 "quality_score": quality,
-                                "dispatcher_version": "v2-batch",
+                                "dispatcher_version": "v3-contra-media",
                                 "model": MODEL,
                             },
                         })

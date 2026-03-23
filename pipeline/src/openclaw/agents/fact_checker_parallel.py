@@ -1,8 +1,9 @@
 """
-Fact-Checker Paralelo Sectorial — 6 FCs em paralelo por area.
+Fact-Checker Paralelo Sectorial V3 — 6 FCs em paralelo, vertente-aware.
 
-Cada sector processa APENAS items da sua area, em paralelo com os outros.
-Multiplica o throughput por ~6x vs o FC sequencial original.
+V3: Cada item carrega uma 'vertente' (media_watch, alt_news, editorial)
+que determina o modo do FC (auditoria media, verificacao rigorosa, ou editorial).
+O routing por sector (area) mantem-se igual.
 
 Sectores:
   fc-mundo:     geopolitica, politica_intl, diplomacia, defesa, defesa_estrategica
@@ -13,7 +14,7 @@ Sectores:
   fc-justica:   desinformacao, crime_organizado
 
 Frequencia: cada 25 min via scheduler_ollama.py
-Modelo:     MODEL_FACTCHECKER (fallback: deepseek-v3.2)
+Modelo:     MODEL_FACTCHECKER (fallback: mistral-large-3:675b)
 """
 import logging
 import os
@@ -70,7 +71,12 @@ def _run_sector(sector: str, areas: list[str]) -> dict:
             logger.debug("FC [%s]: sem items para verificar", sector)
             return stats
 
-        logger.info("FC [%s]: verificando %d items (areas: %s)", sector, len(items), ", ".join(areas))
+        # V3: log vertente distribution
+        vertentes = {}
+        for it in items:
+            v = it.get("vertente", "media_watch")
+            vertentes[v] = vertentes.get(v, 0) + 1
+        logger.info("FC [%s]: verificando %d items (areas: %s, vertentes: %s)", sector, len(items), ", ".join(areas), vertentes)
 
         for item in items:
             try:

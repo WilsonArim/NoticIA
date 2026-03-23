@@ -40,10 +40,11 @@ def run_escritor():
     except Exception as e:
         logger.warning("Escritor: falha ao criar pipeline_run: %s", e)
 
+    # V3: reads 'ready_to_write' (post-decisor) AND 'approved' (backward compat)
     result = (
         supabase.table("intake_queue")
         .select("*")
-        .eq("status", "approved")
+        .in_("status", ["ready_to_write", "approved"])
         .order("score", desc=True)
         .limit(BATCH_SIZE)
         .execute()
@@ -120,44 +121,28 @@ def _event_is_stale(data_real_str: str | None) -> bool:
 
 
 def _escrever_artigo(item: dict) -> dict:
+    """V3: Write article using template based on article_type."""
     metadata = item.get("metadata") or {}
+    article_type = metadata.get("article_type", "standard")
     is_dossie = metadata.get("source_agent") == "dossie"
 
     fact_summary = item.get("fact_check_summary") or {}
+    bias_verdict = item.get("bias_verdict") or {}
     notas_fc = fact_summary.get("notas", "")
 
-    prompt = f"""És um jornalista rigoroso. Escreve um artigo em **PT-PT** (Portugal, não Brasil).
-
-REGRAS LINGUÍSTICAS PT-PT:
-- "facto" (não "fato"), "equipa" (não "time"), "rede" (não "internet"), "telemóvel" (não "celular")
-- Tom sério, directo, sem sensacionalismo
-- Factos primeiro, contexto depois
-{"- Este artigo vem do dossiê de investigação: apresenta os factos tal como são, sem suavizar a realidade" if is_dossie else ""}
-
-REGRAS DO TÍTULO:
-- O título DEVE ser factualmente correcto e coerente com o corpo do artigo
-- Se o título sugerido é ambíguo ou contraditório com o conteúdo, REESCREVE-O
-- O sujeito do título deve ser o protagonista principal da notícia (quem fez a acção)
-- NUNCA traduzir literalmente um título noutra língua sem verificar a lógica
-- Se há dois actores (ex: Equipa A vs Equipa B), o título deve clarificar quem fez o quê
-
-DADOS DO ARTIGO:
-Título sugerido: {item.get("title", "")}
-Conteúdo base: {item.get("content", "")[:1000]}
-Fonte: {item.get("url", "")}
-Área: {item.get("area", "mundo")}
-Notas do fact-checker: {notas_fc}
-Certainty: {fact_summary.get("certainty_score", 0.8)}
-
-Escreve o artigo completo em JSON:
-{{
-  "titulo": "Título factual e directo (máx 90 chars)",
-  "subtitulo": "Subtítulo que acrescenta contexto (máx 140 chars)",
-  "lead": "Parágrafo de abertura (2-3 frases, responde: quem, o quê, quando, onde)",
-  "corpo_html": "<p>Corpo completo em HTML...</p>",
-  "tags": ["tag1", "tag2", "tag3"],
-  "slug": "titulo-em-kebab-case-sem-acentos"
-}}"""
+    # Route to the appropriate template
+    if article_type == "expose":
+        prompt = _template_expose(item, fact_summary, bias_verdict)
+    elif article_type == "omission":
+        prompt = _template_omission(item, fact_summary, bias_verdict)
+    elif article_type == "alt_news":
+        prompt = _template_alt_news(item, fact_summary)
+    elif article_type == "fact_check":
+        prompt = _template_fact_check(item, fact_summary, bias_verdict)
+    elif article_type == "editorial":
+        prompt = _template_editorial(item, fact_summary)
+    else:
+        prompt = _template_standard(item, fact_summary)
 
     response = chat(MODEL, [{"role": "user", "content": prompt}], temperature=0.4, max_tokens=3000)
 
@@ -165,11 +150,197 @@ Escreve o artigo completo em JSON:
     end = response.rfind("}") + 1
     if start >= 0 and end > start:
         raw_json = response[start:end]
-        # strict=False allows literal control characters (newlines, tabs) inside JSON strings,
-        # which LLMs frequently produce in corpo_html fields
-        return json.loads(raw_json, strict=False)
+        result = json.loads(raw_json, strict=False)
+        # Inject article_type into result for the publisher
+        result["_article_type"] = article_type
+        return result
 
-    raise ValueError(f"Escritor: resposta inválida: {response[:200]}")
+    raise ValueError(f"Escritor: resposta invalida: {response[:200]}")
+
+
+def _base_rules_ptpt() -> str:
+    """Common PT-PT writing rules for all templates."""
+    return """REGRAS LINGUISTICAS PT-PT:
+- "facto" (nao "fato"), "equipa" (nao "time"), "rede" (nao "internet"), "telemovel" (nao "celular")
+- Tom serio, directo, sem sensacionalismo
+- Factos primeiro, contexto depois
+
+REGRAS DO TITULO:
+- O titulo DEVE ser factualmente correcto e coerente com o corpo
+- Se o titulo sugerido e ambiguo, REESCREVE-O
+- O sujeito do titulo deve ser o protagonista principal (quem fez a accao)"""
+
+
+def _json_format() -> str:
+    """Common JSON output format."""
+    return """Escreve em JSON:
+{
+  "titulo": "Titulo factual e directo (max 90 chars)",
+  "subtitulo": "Subtitulo com contexto (max 140 chars)",
+  "lead": "Paragrafo abertura (2-3 frases: quem, o que, quando, onde)",
+  "corpo_html": "<p>Corpo completo em HTML...</p>",
+  "tags": ["tag1", "tag2", "tag3"],
+  "slug": "titulo-em-kebab-case-sem-acentos"
+}"""
+
+
+def _template_expose(item: dict, fc: dict, bv: dict) -> str:
+    """EXPOSE template — unmask media bias."""
+    bias_type = bv.get("bias_type", "desconhecido")
+    omitted = bv.get("omitted_facts", [])
+    counter = bv.get("counter_narrative", "")
+    fontes = fc.get("fontes_encontradas", [])
+
+    return f"""Es um jornalista investigativo do NoticIA. A tua missao e DESMASCARAR o vies dos media.
+
+{_base_rules_ptpt()}
+
+DADOS DO EXPOSE:
+Titulo original (media): {item.get("title", "")}
+Conteudo original: {item.get("content", "")[:800]}
+Fonte media: {item.get("url", "")}
+Tipo de vies detectado: {bias_type}
+Factos omitidos pelo media: {', '.join(omitted) if omitted else 'nenhum identificado'}
+Contra-narrativa: {counter or 'nao disponivel'}
+Fontes primarias: {', '.join(fontes[:4]) if fontes else 'nenhuma'}
+Notas do fact-checker: {fc.get("notas", "")}
+
+ESTRUTURA DO EXPOSE:
+1. O que os media disseram (resumo factual da noticia original)
+2. O que os media omitiram (factos que faltam, com fontes)
+3. O outro lado da historia (contra-narrativa com evidencia)
+4. Fontes primarias (links para dados oficiais/originais)
+
+Tom: Factual, directo, sem sensacionalismo. Deixa os factos falar.
+NAO uses linguagem inflamatoria. Mostra o vies com FACTOS, nao com opiniao.
+
+{_json_format()}"""
+
+
+def _template_omission(item: dict, fc: dict, bv: dict) -> str:
+    """OMISSION template — cover what media ignores."""
+    omitted = bv.get("omitted_facts", [])
+    fontes = fc.get("fontes_encontradas", [])
+
+    return f"""Es um jornalista do NoticIA. Estas a cobrir algo que os media portugueses IGNORAM ou SUB-REPORTAM.
+
+{_base_rules_ptpt()}
+
+DADOS:
+Evento: {item.get("title", "")}
+Conteudo: {item.get("content", "")[:800]}
+Fonte: {item.get("url", "")}
+Area: {item.get("area", "mundo")}
+Factos omitidos pelos media: {', '.join(omitted) if omitted else 'contexto geral omitido'}
+Fontes primarias: {', '.join(fontes[:4]) if fontes else 'nenhuma'}
+Notas do fact-checker: {fc.get("notas", "")}
+
+ESTRUTURA:
+1. O que aconteceu (factos verificados)
+2. Porque e importante (impacto, contexto)
+3. O que os media nao cobrem e porque (analise, se aplicavel)
+4. Fontes (links)
+
+Inclui no subtitulo ou lead: "Os media portugueses nao cobriram esta noticia" (se aplicavel).
+
+{_json_format()}"""
+
+
+def _template_alt_news(item: dict, fc: dict) -> str:
+    """ALT-NEWS template — verified alternative source news."""
+    fontes = fc.get("fontes_encontradas", [])
+
+    return f"""Es um jornalista rigoroso. Escreve um artigo em PT-PT sobre uma noticia verificada que NAO foi coberta pela imprensa mainstream.
+
+{_base_rules_ptpt()}
+
+DADOS:
+Titulo: {item.get("title", "")}
+Conteudo: {item.get("content", "")[:800]}
+Fonte original: {item.get("url", "")}
+Area: {item.get("area", "mundo")}
+Certainty: {fc.get("certainty_score", 0.8)}
+Fontes de verificacao: {', '.join(fontes[:4]) if fontes else 'nenhuma'}
+Notas do fact-checker: {fc.get("notas", "")}
+
+ESTRUTURA:
+1. O que aconteceu (factos verificados por 3+ fontes)
+2. Contexto e impacto
+3. Fontes de verificacao
+4. Nota: "Esta noticia nao foi coberta pela imprensa portuguesa mainstream."
+
+Tom: Factual, credivel, jornalismo puro.
+
+{_json_format()}"""
+
+
+def _template_fact_check(item: dict, fc: dict, bv: dict) -> str:
+    """FACT-CHECK template — point-by-point verification."""
+    fontes = fc.get("fontes_encontradas", [])
+    counter = bv.get("counter_narrative", "")
+
+    return f"""Es um fact-checker jornalistico. Escreve uma desmontagem ponto a ponto em PT-PT.
+
+{_base_rules_ptpt()}
+
+DADOS:
+Afirmacao/Noticia: {item.get("title", "")}
+Conteudo: {item.get("content", "")[:800]}
+Fonte: {item.get("url", "")}
+Fontes de verificacao: {', '.join(fontes[:4]) if fontes else 'nenhuma'}
+Contra-narrativa: {counter or 'n/a'}
+Notas do FC: {fc.get("notas", "")}
+
+ESTRUTURA (formato fact-check):
+Para cada afirmacao principal:
+  - AFIRMACAO: "X disse que Y"
+  - VERIFICACAO: O que as fontes primarias dizem
+  - VEREDICTO: Verdadeiro / Parcialmente verdadeiro / Falso / Enganador (com provas)
+
+Conclusao final com veredicto geral.
+
+{_json_format()}"""
+
+
+def _template_editorial(item: dict, fc: dict) -> str:
+    """EDITORIAL template — Wilson's manual injection."""
+    fontes = fc.get("fontes_encontradas", [])
+
+    return f"""Es um jornalista rigoroso. O editor-chefe submeteu esta noticia para publicacao. Escreve em PT-PT.
+
+{_base_rules_ptpt()}
+
+DADOS:
+Titulo: {item.get("title", "")}
+Conteudo: {item.get("content", "")[:1000]}
+Fonte: {item.get("url", "")}
+Area: {item.get("area", "mundo")}
+Fontes de verificacao: {', '.join(fontes[:4]) if fontes else 'nenhuma'}
+Notas do FC: {fc.get("notas", "")}
+
+Escreve o artigo completo. Tom serio e profissional.
+
+{_json_format()}"""
+
+
+def _template_standard(item: dict, fc: dict) -> str:
+    """STANDARD template — backward compatible, same as original escritor."""
+    notas_fc = fc.get("notas", "")
+
+    return f"""Es um jornalista rigoroso. Escreve um artigo em **PT-PT** (Portugal, nao Brasil).
+
+{_base_rules_ptpt()}
+
+DADOS DO ARTIGO:
+Titulo sugerido: {item.get("title", "")}
+Conteudo base: {item.get("content", "")[:1000]}
+Fonte: {item.get("url", "")}
+Area: {item.get("area", "mundo")}
+Notas do fact-checker: {notas_fc}
+Certainty: {fc.get("certainty_score", 0.8)}
+
+{_json_format()}"""
+
 
 
 def _publicar_artigo(supabase, item: dict, artigo: dict):
@@ -224,6 +395,7 @@ def _publicar_artigo(supabase, item: dict, artigo: dict):
         "claim_text": claim_text,
         "claim_subject": item.get("title", "")[:100],
         "intake_queue_id": item["id"],
+        "article_type": artigo.get("_article_type", (item.get("metadata") or {}).get("article_type", "standard")),
     }
 
     result = supabase.rpc("publish_article_with_sources", {"payload": payload}).execute()

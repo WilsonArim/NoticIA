@@ -6,15 +6,17 @@ Uso:
   cd pipeline && source venv/bin/activate
   python -m openclaw.scheduler_ollama
 
-Fluxo do pipeline V2 (optimizado):
-  raw_events
-    → [dispatcher V2]  cada 5 min   — dedup + filtro + batch LLM + quality gate
-    → intake_queue (status='auditor_approved')
-    → [fact_checker]   cada 25 min  — web search + verificação factual
-    → intake_queue (status='approved')
-    → [escritor]       cada 30 min  — escrita PT-PT
-    → articles (status='published')
-    → [cronistas]      dom 10:00    — 10 crónicas semanais
+Fluxo do pipeline V3 (contra-media):
+  raw_events (com source_type: media|alternative|editorial_injection)
+    → [dispatcher V3]    cada 5 min   — dedup + filtro + batch LLM + quality gate + vertente
+    → intake_queue (status='auditor_approved', vertente=media_watch|alt_news|editorial)
+    → [fact_checker V3]  cada 25 min  — dual-mode: auditoria media | verificação rigorosa | editorial
+    → intake_queue (status='approved', bias_verdict, media_audit)
+    → [decisor editorial] cada 10 min — gate: publicar (tipo) | descartar | wilson_review
+    → intake_queue (status='ready_to_write', article_type)
+    → [escritor V3]      cada 30 min  — 4 templates: exposé, omissão, alt-news, fact-check
+    → articles (status='published', article_type)
+    → [cronistas]        dom 10:00    — 10 crónicas semanais
 
 Optimizações V2 vs V1:
   - Dedup pré-LLM: ~7% chamadas eliminadas
@@ -43,6 +45,8 @@ from openclaw.agents.dispatcher import run_dispatcher
 from openclaw.agents.fact_checker_parallel import run_fact_checkers_parallel
 from openclaw.agents.escritor import run_escritor
 from openclaw.agents.cronistas import run_cronistas
+from openclaw.agents.editorial_decisor import run_editorial_decisor
+from openclaw.agents.coverage_analyzer import run_coverage_analysis
 from openclaw.collector_runner import run_collectors
 from openclaw.engenheiro_pipeline import run_pipeline_health
 
@@ -141,8 +145,17 @@ scheduler.add_job(
     max_instances=1,
 )
 
-# ── Camada 4 — Escritor (mistral-large-3:675b) ──────────────────────────
-# Cada 30 min: lê 'approved', escreve artigo em PT-PT, publica
+# ── Camada 4 — Decisor Editorial V3 ─────────────────────────────────────
+# Cada 10 min: lê 'approved', decide publicar/descartar/review, marca 'ready_to_write'
+scheduler.add_job(
+    run_editorial_decisor,
+    IntervalTrigger(minutes=10),
+    id="editorial_decisor",
+    max_instances=1,
+)
+
+# ── Camada 5 — Escritor V3 (mistral-large-3:675b) ──────────────────────
+# Cada 30 min: lê 'ready_to_write', escreve artigo com template por tipo, publica
 scheduler.add_job(
     run_escritor,
     IntervalTrigger(minutes=30),
@@ -159,7 +172,16 @@ scheduler.add_job(
     max_instances=1,
 )
 
-# ── Camada 6 — Cronistas (gemma3:27b) ───────────────────────────────────
+# ── Camada 7 — Coverage Analyzer V3 ─────────────────────────────────────
+# Cada 6 horas: detecta noticias alternativas sem cobertura mainstream
+scheduler.add_job(
+    run_coverage_analysis,
+    IntervalTrigger(hours=6),
+    id="coverage_analyzer",
+    max_instances=1,
+)
+
+# ── Camada 8 — Cronistas (gemma3:27b) ───────────────────────────────────
 # Semanal: domingos às 10:00 UTC — gera 10 crónicas semanais
 scheduler.add_job(
     run_cronistas,
@@ -190,7 +212,7 @@ if __name__ == "__main__":
     run_dispatcher()
 
     scheduler.start()
-    logger.info("Scheduler activo. Jobs: collectors(15m) | dispatcher(5m) | fact_checker(25m) | escritor(30m) | pipeline_health(30m) | cronistas(dom 10h)")
+    logger.info("Scheduler V3 activo. Jobs: collectors(15m) | dispatcher(5m) | fact_checker(25m) | decisor(10m) | escritor(30m) | pipeline_health(30m) | coverage(6h) | cronistas(dom 10h)")
 
     try:
         while True:

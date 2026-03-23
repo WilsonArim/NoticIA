@@ -44,6 +44,9 @@ def _insert_raw_events(events) -> int:
                 f"{ev.url}:{ev.source_collector}".encode()
             ).hexdigest()
 
+            # V3: classify source origin for contra-media routing
+            source_type = "alternative" if ev.source_collector in ("telegram",) else "media"
+
             rows.append({
                 "event_hash": event_hash,
                 "title": ev.title[:500],
@@ -54,6 +57,7 @@ def _insert_raw_events(events) -> int:
                 "published_at": pub_at.isoformat() if pub_at else None,
                 "raw_metadata": ev.raw_metadata or {},
                 "processed": False,
+                "source_type": source_type,
             })
 
         try:
