@@ -1,5 +1,5 @@
 """
-Collector Runner — executa RSS + GDELT collectors e insere raw_events no Supabase.
+Collector Runner — executa RSS collector e insere raw_events no Supabase.
 
 Chamado pelo scheduler a cada 15 minutos. Cada collector produz RawEvent objects
 que são inseridos na tabela raw_events para serem processados pelo dispatcher.
@@ -85,11 +85,9 @@ def _insert_raw_events(events) -> int:
 
 
 async def _run_collectors_async() -> dict:
-    """Run RSS and GDELT collectors, return stats."""
+    """Run RSS collector, return stats."""
     from openclaw.collectors.rss import RSSCollector
-    from openclaw.collectors.gdelt import GDELTCollector
-
-    stats = {"rss": 0, "gdelt": 0, "inserted": 0, "errors": []}
+    stats = {"rss": 0, "inserted": 0, "errors": []}
 
     # RSS Collector
     rss = RSSCollector()
@@ -103,20 +101,8 @@ async def _run_collectors_async() -> dict:
     finally:
         await rss.close()
 
-    # GDELT Collector
-    gdelt = GDELTCollector()
-    try:
-        gdelt_events = await gdelt.collect()
-        stats["gdelt"] = len(gdelt_events)
-    except Exception as e:
-        logger.error("GDELT collector failed: %s", e)
-        stats["errors"].append(f"gdelt: {e}")
-        gdelt_events = []
-    finally:
-        await gdelt.close()
-
-    # Merge and insert
-    all_events = rss_events + gdelt_events
+    all_events = rss_events
+    all_events = rss_events
     if all_events:
         stats["inserted"] = _insert_raw_events(all_events)
 
@@ -124,7 +110,7 @@ async def _run_collectors_async() -> dict:
 
 
 def run_collectors() -> None:
-    """Sync entry point for the scheduler. Runs RSS + GDELT collectors."""
+    """Sync entry point for the scheduler. Runs RSS collector."""
     if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
         logger.error("Collectors: SUPABASE_URL / SUPABASE_SERVICE_KEY missing — skipping")
         return
@@ -132,8 +118,8 @@ def run_collectors() -> None:
     try:
         stats = asyncio.run(_run_collectors_async())
         logger.info(
-            "Collectors: RSS=%d, GDELT=%d → inserted %d raw_events",
-            stats["rss"], stats["gdelt"], stats["inserted"],
+            "Collectors: RSS=%d → inserted %d raw_events",
+            stats["rss"], stats["inserted"],
         )
         if stats["errors"]:
             logger.warning("Collector errors: %s", "; ".join(stats["errors"]))

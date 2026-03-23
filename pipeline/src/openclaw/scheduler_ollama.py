@@ -118,8 +118,8 @@ def sync_models_to_supabase() -> None:
 
 scheduler = BackgroundScheduler(job_defaults={"misfire_grace_time": 120})
 
-# ── Camada 1 — Collectors (RSS + GDELT) ──────────────────────────────────
-# Cada 15 min: recolhe de 23+ RSS feeds e GDELT API, insere em raw_events
+# ── Camada 1 — Collectors (RSS) ─────────────────────────────────────────
+# Cada 15 min: recolhe de 23+ RSS feeds, insere em raw_events
 scheduler.add_job(
     run_collectors,
     IntervalTrigger(minutes=15),
@@ -206,7 +206,7 @@ if __name__ == "__main__":
     sync_models_to_supabase()
 
     # Arrancar agentes iniciais antes do scheduler (warm-up)
-    logger.info("Warm-up: collectors (RSS + GDELT)...")
+    logger.info("Warm-up: collectors (RSS)...")
     run_collectors()
     logger.info("Warm-up: dispatcher V2 (primeiro batch de raw_events)...")
     run_dispatcher()
