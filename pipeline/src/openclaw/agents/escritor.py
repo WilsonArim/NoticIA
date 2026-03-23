@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
 MODEL = os.getenv("MODEL_ESCRITOR", "nemotron-3-super:cloud")
-BATCH_SIZE = int(os.getenv("ESCRITOR_BATCH_SIZE", "5"))
+BATCH_SIZE = int(os.getenv("ESCRITOR_BATCH_SIZE", "15"))
 MAX_EVENT_AGE_DAYS = int(os.getenv("MAX_EVENT_AGE_DAYS", "7"))
 CERTAINTY_THRESHOLD = float(os.getenv("ESCRITOR_CERTAINTY_THRESHOLD", "0.895"))
 

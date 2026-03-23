@@ -43,8 +43,8 @@ SECTOR_AREAS: dict[str, list[str]] = {
     "fc-justica": ["desinformacao", "crime_organizado"],
 }
 
-ITEMS_PER_SECTOR = int(os.getenv("FC_ITEMS_PER_SECTOR", "5"))
-MAX_WORKERS = int(os.getenv("FC_MAX_WORKERS", "3"))
+ITEMS_PER_SECTOR = int(os.getenv("FC_ITEMS_PER_SECTOR", "10"))
+MAX_WORKERS = int(os.getenv("FC_MAX_WORKERS", "6"))
 
 
 def _run_sector(sector: str, areas: list[str]) -> dict:

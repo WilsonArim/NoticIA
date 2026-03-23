@@ -137,10 +137,10 @@ scheduler.add_job(
 )
 
 # ── Camada 3 — Fact-Checker (deepseek-v3.2 + web search) ────────────────
-# Cada 25 min: 6 FCs sectoriais em paralelo (ThreadPoolExecutor, max_workers=3)
+# Cada 15 min: 6 FCs sectoriais em paralelo (ThreadPoolExecutor, max_workers=3)
 scheduler.add_job(
     run_fact_checkers_parallel,
-    IntervalTrigger(minutes=25),
+    IntervalTrigger(minutes=15),
     id="fact_checker",
     max_instances=1,
 )
@@ -155,10 +155,10 @@ scheduler.add_job(
 )
 
 # ── Camada 5 — Escritor V3 (mistral-large-3:675b) ──────────────────────
-# Cada 30 min: lê 'ready_to_write', escreve artigo com template por tipo, publica
+# Cada 15 min: lê 'ready_to_write', escreve artigo com template por tipo, publica
 scheduler.add_job(
     run_escritor,
-    IntervalTrigger(minutes=30),
+    IntervalTrigger(minutes=15),
     id="escritor",
     max_instances=1,
 )
@@ -212,7 +212,7 @@ if __name__ == "__main__":
     run_dispatcher()
 
     scheduler.start()
-    logger.info("Scheduler V3 activo. Jobs: collectors(15m) | dispatcher(5m) | fact_checker(25m) | decisor(10m) | escritor(30m) | pipeline_health(30m) | coverage(6h) | cronistas(dom 10h)")
+    logger.info("Scheduler V3 activo. Jobs: collectors(15m) | dispatcher(5m) | fact_checker(15m) | decisor(10m) | escritor(15m) | pipeline_health(30m) | coverage(6h) | cronistas(dom 10h)")
 
     try:
         while True:
