@@ -14,6 +14,7 @@ Fluxo do pipeline V2 (optimizado):
     → intake_queue (status='approved')
     → [escritor]       cada 30 min  — escrita PT-PT
     → articles (status='published')
+    → [cronistas]      dom 10:00    — 10 crónicas semanais
 
 Optimizações V2 vs V1:
   - Dedup pré-LLM: ~7% chamadas eliminadas
@@ -32,14 +33,16 @@ import time
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.triggers.cron import CronTrigger
 from dotenv import load_dotenv
 
 load_dotenv()
 
 # V2: dispatcher com dedup + filtro + batching + quality gate
 from openclaw.agents.dispatcher import run_dispatcher
-from openclaw.agents.fact_checker import run_fact_checker
+from openclaw.agents.fact_checker_parallel import run_fact_checkers_parallel
 from openclaw.agents.escritor import run_escritor
+from openclaw.agents.cronistas import run_cronistas
 from openclaw.collector_runner import run_collectors
 from openclaw.engenheiro_pipeline import run_pipeline_health
 
@@ -130,9 +133,9 @@ scheduler.add_job(
 )
 
 # ── Camada 3 — Fact-Checker (deepseek-v3.2 + web search) ────────────────
-# Cada 25 min: lê 'auditor_approved', verifica factos com pesquisa real
+# Cada 25 min: 6 FCs sectoriais em paralelo (ThreadPoolExecutor, max_workers=3)
 scheduler.add_job(
-    run_fact_checker,
+    run_fact_checkers_parallel,
     IntervalTrigger(minutes=25),
     id="fact_checker",
     max_instances=1,
@@ -153,6 +156,15 @@ scheduler.add_job(
     run_pipeline_health,
     IntervalTrigger(minutes=30),
     id="pipeline_health",
+    max_instances=1,
+)
+
+# ── Camada 6 — Cronistas (gemma3:27b) ───────────────────────────────────
+# Semanal: domingos às 10:00 UTC — gera 10 crónicas semanais
+scheduler.add_job(
+    run_cronistas,
+    CronTrigger(day_of_week="sun", hour=10, minute=0),
+    id="cronistas",
     max_instances=1,
 )
 
@@ -178,7 +190,7 @@ if __name__ == "__main__":
     run_dispatcher()
 
     scheduler.start()
-    logger.info("Scheduler activo. Jobs: collectors(15m) | dispatcher(5m) | fact_checker(25m) | escritor(30m) | pipeline_health(30m)")
+    logger.info("Scheduler activo. Jobs: collectors(15m) | dispatcher(5m) | fact_checker(25m) | escritor(30m) | pipeline_health(30m) | cronistas(dom 10h)")
 
     try:
         while True:

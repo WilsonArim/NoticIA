@@ -20,7 +20,7 @@ SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
 MODEL = os.getenv("MODEL_ESCRITOR", "nemotron-3-super:cloud")
 BATCH_SIZE = int(os.getenv("ESCRITOR_BATCH_SIZE", "5"))
 MAX_EVENT_AGE_DAYS = int(os.getenv("MAX_EVENT_AGE_DAYS", "7"))
-CERTAINTY_THRESHOLD = float(os.getenv("ESCRITOR_CERTAINTY_THRESHOLD", "0.7"))
+CERTAINTY_THRESHOLD = float(os.getenv("ESCRITOR_CERTAINTY_THRESHOLD", "0.895"))
 
 
 def run_escritor():
@@ -164,7 +164,10 @@ Escreve o artigo completo em JSON:
     start = response.find("{")
     end = response.rfind("}") + 1
     if start >= 0 and end > start:
-        return json.loads(response[start:end])
+        raw_json = response[start:end]
+        # strict=False allows literal control characters (newlines, tabs) inside JSON strings,
+        # which LLMs frequently produce in corpo_html fields
+        return json.loads(raw_json, strict=False)
 
     raise ValueError(f"Escritor: resposta inválida: {response[:200]}")
 

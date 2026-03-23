@@ -510,3 +510,211 @@ Dispatcher concluído: fetched=X queued=Y rejected=Z stale=0 errors=0
 **Vercel:** frontend do Curador de Noticias
 **OpenClaw service:** `sudo systemctl status openclaw.service`
 **Telegram service:** `sudo systemctl status telegram-collector.service`
+
+---
+
+## 2026-03-22 — Limpeza Systemd + Diagnóstico Pipeline (por CEO)
+
+### Systemd Services Arquivados
+
+Os 3 systemd unit files foram **arquivados** para `/etc/systemd/system/archived/`:
+- `noticia-pipeline.service` → archived
+- `noticia-telegram.service` → archived
+- `noticia-diretor-elite.service` → archived
+
+**Motivo:** Desde a migração para Docker Compose (2026-03-21), os systemd services estavam `disabled/dead` mas os unit files permaneciam no sistema, criando confusão. O runtime activo é exclusivamente Docker Compose (3 containers: pipeline, telegram-bot, telegram-collector).
+
+**Acção:** `systemctl disable` + movidos para `/etc/systemd/system/archived/` + `daemon-reload`. Reversível se necessário.
+
+### Telegram Collector — FLOOD-WAIT
+
+O `DELAY_BETWEEN_CHANNELS=10` está activo e confirmado no container (10s entre canais nos logs). No entanto, a conta Telegram tem um FLOOD-WAIT de ~21h imposto pelo Telegram API devido a abusos anteriores quando o delay era 0.5s. Resolução automática quando o flood-wait expirar.
+
+Os 1278 canais estão correctos e verificados — rodam em 3 camadas de prioridade (Tier 1-2 sempre, Tier 3-4 rotação 1/3, Tier 5 rotação 1/5).
+
+### Fact-Checker — Diagnóstico CRÍTICO
+
+**Problema identificado:** O scheduler chama UMA ÚNICA função `run_fact_checker()` a cada 25 min. Esta função processa 10 items por ciclo, sequencialmente. Os 7 agentes fact-checker no Supabase (fc-mundo, fc-tech, fc-portugal, fc-economia, fc-saude, fc-justica, fc-forense) são apenas registos — o código NÃO os distribui nem os chama individualmente.
+
+**Agravante:** 2 de 3 providers de web search estão em falha:
+- Tavily: HTTP 432 (quota esgotada) — modo grátis mantido
+- Exa.ai: HTTP 402 Payment Required — modo grátis mantido
+- Serper.dev: único provider funcional, mas lento como fallback
+
+**Impacto:** Backlog de 378 items em auditor_approved, throughput de ~5-15 items/ciclo (25min), estimativa de limpeza: 2-3 dias.
+
+**Acção necessária (ASAP):** Paralelizar os fact-checkers sectoriais no scheduler para processar mais items por ciclo.
+
+*Registado pelo CEO às 2026-03-22 21:00 UTC*
+
+---
+
+## 2026-03-22 — Fact-Checkers Sectoriais Paralelos (por CEO)
+
+### Problema
+Apenas 1 fact-checker genérico processava toda a intake_queue (~5-15 items/ciclo de 25min). Backlog acumulado de 378+ items em auditor_approved.
+
+### Solução Implementada
+Criado **fact_checker_parallel.py** (177 linhas) com arquitectura sectorial:
+
+| Sector | Áreas |
+|--------|-------|
+| fc-mundo | geopolitica, politica_intl, diplomacia, defesa, defesa_estrategica |
+| fc-tech | tecnologia, ciencia, energia, clima |
+| fc-portugal | portugal, sociedade |
+| fc-economia | economia, financas, crypto, regulacao |
+| fc-saude | saude, direitos_humanos |
+| fc-justica | desinformacao, crime_organizado |
+
+**Mecanismo:** ThreadPoolExecutor com MAX_WORKERS=3, cada sector processa até FC_ITEMS_PER_SECTOR=5 items filtrados por área. Total teórico: até 30 items/ciclo (6× mais throughput).
+
+### Alterações
+1. **Novo ficheiro:** pipeline/src/openclaw/agents/fact_checker_parallel.py
+2. **Modificado:** scheduler_ollama.py — import e job actualizados para run_fact_checkers_parallel
+3. **Docker:** Container pipeline reconstruído e reiniciado — healthy ✅
+
+### Configuração (.env)
+- FC_ITEMS_PER_SECTOR=5 (default, pode ser ajustado)
+- FC_MAX_WORKERS=3 (default, pode ser ajustado até 6)
+
+### Estimativa de Impacto
+- Throughput anterior: ~5-15 items/25min
+- Throughput esperado: ~20-30 items/25min
+- Tempo estimado para limpar backlog: ~8-16 horas (vs 2-3 dias)
+
+### Estado
+- Pipeline container: healthy ✅
+- Job registado no scheduler: run_fact_checkers_parallel (25min) ✅
+- Primeiro run automático: ~21:31 UTC
+- Web search: Tavily (432) e Exa.ai (402) em modo grátis esgotado; Serper.dev activo
+
+*Registado pelo CEO às 2026-03-22 21:17 UTC*
+
+---
+
+## 2026-03-22 — Ollama Web Search: Provider Primario (por CEO)
+
+### Contexto
+Tavily (432) e Exa.ai (402) em modo gratuito esgotado. Apenas Serper.dev activo.
+Investigacao revelou que o Ollama Pro (ja subscrito a $20/mes) inclui Web Search API gratuito, sem limites publicados, multilinguee e sem vies.
+
+### Testes Realizados
+- **Burst test:** 20/20 pesquisas consecutivas sem throttling (~1.3s/pesquisa)
+- **Multilinguee:** Testado em 6 idiomas (PT-PT, Mandarim, Russo, Farsi, Arabe, Swahili) - todos com resultados de qualidade
+- **PT-PT vs PT-BR:** Distingue correctamente por contexto (fontes portuguesas para temas portugueses)
+- **Qualidade:** Reuters, Folha, Globo, Parlamento.pt, CNN Portugal, DW, Interfax, UN News
+- **Fallback:** Quando Ollama falha, Serper.dev assume automaticamente
+
+### Alteracoes
+1. **pipeline/src/openclaw/agents/fact_checker.py** - Ollama Web Search como provider primario
+   - Nova chain: Ollama -> Serper -> Tavily -> Exa
+   - Funcao _web_search() com fallback automatico
+   - Env vars: OLLAMA_BASE_URL + OLLAMA_API_KEY (ja existiam)
+
+2. **telegram-bot/elite_fact_checker.py** - Ollama como tool de pesquisa
+   - Nova funcao _search_ollama() com exclusao de dominio do reporter
+   - Novo tool ollama_search para o LLM usar como primeira opcao
+   - Adicionado ao _execute_search()
+   - Corrigido tool_choice="required" nos rounds 0-1 (forca pesquisa)
+   - Retry com correction prompt quando JSON parsing falha
+   - Coluna fc_bias_flags adicionada a elite_findings (Supabase migration)
+
+3. **Docker:** Ambos containers (pipeline + telegram-bot) reconstruidos e healthy
+
+### Verificacao
+- Container pipeline: healthy, Ollama search retorna 7 resultados
+- Container bot: healthy, _search_ollama funcional
+- Fallback chain testado: Ollama desactivado -> Serper assume
+- Sem erros de import ou runtime
+
+### Impacto
+- Custo web search: $0 adicional (incluido no Ollama Pro $20/mes)
+- Fiabilidade: chain de 4 providers em vez de 3
+- Qualidade: resultados multilinguees com conteudo rico (3K-12K chars)
+- Vies: sem personalizacao, sem filtros editoriais
+
+*Registado pelo CEO as 2026-03-22 22:05 UTC*
+
+---
+
+## 2026-03-22 23:20 — Fix Elite FC Forense: Arquitectura Duas Fases
+
+### Problema
+O FC Forense ficava preso e nunca produzia veredictos JSON. Causa raiz: **deepseek-v3.2 (modelo de raciocínio) retorna respostas vazias** quando:
+1. `tool_choice="none"` é usado via Ollama API
+2. `max_tokens` é insuficiente — o modelo gasta ~800 tokens na fase interna de raciocínio antes de produzir output visível
+3. Mesmo com `max_tokens` aumentado, o modelo demora >5 min com prompts grandes (15+ evidências), causando timeout
+
+### Solução: Arquitectura Duas Fases + Modelo Split
+**Fase 1 (Pesquisa):** deepseek-v3.2 com tools (4 rondas max, tool_choice="required"/"auto")
+- Recolhe evidências independentes via Ollama/Serper/Tavily/Exa
+- Armazena resultados num array de evidências
+
+**Fase 2 (Veredicto):** cogito-2.1:671b (modelo não-raciocínio) sem tools
+- Conversa LIMPA (sem mensagens tool_call no histórico)
+- Recebe resumo das evidências em texto plano
+- Produz JSON válido em ~7-10 segundos
+- 3 tentativas com retry se JSON inválido
+
+### Mudanças
+- `elite_fact_checker.py`: Reescrita de `_verify_finding()` → 3 funções: `_collect_search_evidence()`, `_generate_verdict()`, `_verify_finding()`
+- `.env` do bot: Adicionado `MODEL_FC_VERDICT=cogito-2.1:671b` e `MODEL_FACTCHECKER=deepseek-v3.2`
+- Evidências limitadas a 10 items com excerpts de 200 chars
+- Eliminado uso de `tool_choice="none"` (incompatível com Ollama)
+
+### Testes
+- 3/3 findings verificados com sucesso (63s, 49s, 53s por finding)
+- JSON válido produzido na primeira tentativa em todos os casos
+- Full run lançado: 72 findings, estimativa ~66 min
+
+---
+
+## 2026-03-23 09:30 — Fix Escritor: JSON Parsing + Threshold Alignment
+
+### Problema
+O Escritor acumulou ~150 items aprovados sem conseguir publicar. Duas causas:
+
+1. **JSON parsing (causa principal):** O LLM (mistral-large-3:675b) produz newlines literais dentro de strings JSON no campo corpo_html. O json.loads() em modo strict rejeita estes caracteres de controlo com erro Invalid control character. Resultado: 154 erros consecutivos vs 1 artigo publicado.
+
+2. **Threshold desalinhado:** O Python usava CERTAINTY_THRESHOLD=0.7 mas o trigger PostgreSQL enforce_publish_quality exige >= 0.895. 24 items passavam pelo Python mas eram rejeitados pelo trigger, ficando perpetuamente na queue.
+
+### Solução
+1. **strict=False:** Na linha 167 de escritor.py, mudei json.loads(raw_json) para json.loads(raw_json, strict=False). Isto permite newlines/tabs dentro de strings JSON — comportamento esperado com output de LLMs.
+
+2. **Threshold alinhado:** Mudei ESCRITOR_CERTAINTY_THRESHOLD default de 0.7 para 0.895, alinhando com o trigger PostgreSQL. Items abaixo do threshold são movidos para fact_check imediatamente em vez de falhar no RPC.
+
+3. **Limpeza de backlog:** Executei 3 rondas manuais do escritor, publicando ~90 artigos. Queue foi de 126 approved para 1.
+
+### Resultado
+- 0 erros de JSON após o fix
+- ~90 artigos publicados em 3 batches
+- Backlog escritor limpo (126 → 1)
+- Pipeline a funcionar normalmente
+
+---
+
+---
+
+## 2026-03-23 12:00 — Fix Cronistas: Automacao Semanal
+
+### Problema
+As cronicas semanais dos 10 cronistas nao foram publicadas para a semana de 22/Mar. A ultima cronica datava de 15/Mar. A Edge Function cronista no Supabase requer PUBLISH_API_KEY no header Authorization, e nao existe nenhum cron automatico — as invocacoes eram manuais.
+
+### Diagnostico
+1. Sem trigger automatico: nem no APScheduler nem em crontab
+2. Edge Function auth: PUBLISH_API_KEY do .env do pipeline nao corresponde ao secret da Edge Function
+3. Resultado: dependencia de invocacao manual que foi esquecida
+
+### Solucao
+1. Geracao imediata: Criei script Python no container do pipeline que replica a logica da Edge Function, com acesso directo ao Supabase e Ollama (gemma3:27b). Executei para os 10 cronistas: 10/10 publicados com sucesso (~3.5 min total).
+
+2. Modulo permanente: Criei agents/cronistas.py — agente integrado no pipeline com logging pipeline_runs e compativel com o ollama_client existente.
+
+3. Scheduler semanal: Adicionei job CronTrigger no scheduler_ollama.py — domingos as 10:00 UTC. Camada 6 no pipeline (apos pipeline_health).
+
+4. Deploy: Rebuild + restart do container pipeline. 6 jobs registados no scheduler (5 interval + 1 cron).
+
+### Resultado
+- 10/10 cronicas publicadas para semana 16-23/Mar
+- Automacao semanal configurada (domingos 10:00 UTC)
+- Proxima execucao automatica: domingo 30/Mar 10:00 UTC

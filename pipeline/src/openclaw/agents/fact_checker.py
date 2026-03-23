@@ -6,7 +6,7 @@ Lê status='auditor_approved', escreve:
 - status='approved' (certainty >= 0.70, bias baseado em evidência)
 - status='fact_check' (rejeitado: sem fontes, falso, ou demasiado antigo)
 
-Pesquisa: Tavily (primário) → Exa.ai (fallback) → Serper.dev (último recurso)
+Pesquisa: Ollama (primário) → Serper.dev → Tavily → Exa.ai (último recurso)
 Artigos normais: 1 pesquisa composta | Artigos dossiê: 3 pesquisas dirigidas
 """
 import os
@@ -27,6 +27,8 @@ SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
 EXA_API_KEY = os.getenv("EXA_API_KEY", "")
 SERPER_API_KEY = os.getenv("SERPER_API_KEY", "")
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "")
+OLLAMA_API_KEY = os.getenv("OLLAMA_API_KEY", "")
 MODEL = os.getenv("MODEL_FACTCHECKER", "nemotron-3-super:cloud")
 BATCH_SIZE = int(os.getenv("FACTCHECKER_BATCH_SIZE", "10"))
 MAX_EVENT_AGE_DAYS = int(os.getenv("MAX_EVENT_AGE_DAYS", "7"))
@@ -74,9 +76,65 @@ def execute_tool(tool_name: str, args: dict) -> dict:
 
 
 def _web_search(query: str) -> dict:
-    """Pesquisa real com fallback automático: Tavily → Exa.ai → Serper.dev."""
+    """Pesquisa real com fallback automático: Ollama → Serper → Tavily → Exa."""
 
-    # 1. Tavily (primário — melhor para fact-checking, sem viés conhecido)
+    # 0. Ollama Web Search (primário — gratuito, sem viés, multilíngue)
+    if OLLAMA_API_KEY and OLLAMA_BASE_URL:
+        try:
+            resp = httpx.post(
+                f"{OLLAMA_BASE_URL}/api/web_search",
+                headers={"Authorization": f"Bearer {OLLAMA_API_KEY}", "Content-Type": "application/json"},
+                json={"query": query, "max_results": 7},
+                timeout=15,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            results = data.get("results", [])
+            if results:
+                logger.debug("Search via Ollama: %d resultados", len(results))
+                return {
+                    "provider": "ollama",
+                    "results": [
+                        {
+                            "title": r.get("title", ""),
+                            "url": r.get("url", ""),
+                            "description": r.get("content", "")[:500],
+                        }
+                        for r in results[:7]
+                    ],
+                }
+        except Exception as e:
+            logger.warning("Ollama Web Search falhou: %s — tentando Serper.dev", e)
+
+    # 1. Serper.dev (secundário — Google results, rápido)
+    if SERPER_API_KEY:
+        try:
+            resp = httpx.post(
+                "https://google.serper.dev/search",
+                headers={"X-API-KEY": SERPER_API_KEY, "Content-Type": "application/json"},
+                json={"q": query, "num": 7, "gl": "pt", "hl": "en"},
+                timeout=12,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            organic = data.get("organic", [])
+            if organic:
+                logger.debug("Search via Serper (Google): %d resultados", len(organic))
+                return {
+                    "provider": "serper_google",
+                    "results": [
+                        {
+                            "title": r.get("title", ""),
+                            "url": r.get("link", ""),
+                            "description": r.get("snippet", ""),
+                        }
+                        for r in organic[:7]
+                    ],
+                }
+        except Exception as e:
+            logger.warning("Serper.dev falhou: %s — tentando Tavily", e)
+
+    # 2. Tavily (terciário — melhor para fact-checking, sem viés conhecido)
     if TAVILY_API_KEY:
         try:
             resp = httpx.post(
@@ -138,42 +196,7 @@ def _web_search(query: str) -> dict:
         except Exception as e:
             logger.warning("Exa.ai falhou: %s — tentando Serper.dev", e)
 
-    # 3. Serper.dev (último recurso — Google News, viés editorial de esquerda)
-    if SERPER_API_KEY:
-        try:
-            resp = httpx.post(
-                "https://google.serper.dev/search",
-                headers={"X-API-KEY": SERPER_API_KEY, "Content-Type": "application/json"},
-                json={"q": query, "num": 7, "gl": "pt", "hl": "en"},
-                timeout=12,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            organic = data.get("organic", [])
-            if organic:
-                logger.debug(
-                    "Search via Serper (Google): %d resultados — ATENÇÃO: viés editorial possível",
-                    len(organic),
-                )
-                return {
-                    "provider": "serper_google",
-                    "warning": (
-                        "ATENÇÃO: estes resultados vêm do Google News que tem viés editorial de esquerda. "
-                        "Desvaloriza media mainstream (BBC, Guardian, NYT, El País, etc.). "
-                        "Só aceita como evidência se for fonte primária: governo, banco central, "
-                        "ONG reconhecida (HRW, Amnesty, FATF, UN)."
-                    ),
-                    "results": [
-                        {
-                            "title": r.get("title", ""),
-                            "url": r.get("link", ""),
-                            "description": r.get("snippet", ""),
-                        }
-                        for r in organic[:7]
-                    ],
-                }
-        except Exception as e:
-            logger.error("Serper.dev falhou: %s", e)
+    # 3. Exa.ai (último recurso — cobertura técnica e académica)
 
     return {
         "error": (
@@ -290,7 +313,8 @@ REGRAS FUNDAMENTAIS:
    - Um artigo da BBC de 2022 sobre "Zelenskyy no Parlamento" NÃO verifica um evento de {hoje}.
    - Se encontrares cobertura de evento semanticamente similar mas de outro ano, IGNORA essa fonte.
    - Inclui SEMPRE o ano de {hoje[:4]} nas tuas queries de pesquisa para forçar resultados recentes.
-7. Responde sempre em JSON válido no final."""
+7. Responde sempre em JSON válido no final.
+8. SCORING GRANULAR — OBRIGATÓRIO: Os teus scores (certainty_score, bias_score) devem reflectir a avaliação EXACTA deste artigo. NUNCA uses múltiplos de 0.05 (como 0.90, 0.85, 0.10, 0.15). Usa valores precisos como 0.87, 0.93, 0.11, 0.08. Cada artigo é único — os seus scores devem ser únicos."""
 
     user = f"""Verifica este artigo com pesquisa real:
 
@@ -303,20 +327,37 @@ TIPO: {"DOSSIÊ INVESTIGATIVO — requer 3 pesquisas dirigidas" if is_dossie els
 PROCESSO:
 1. Identifica as {n_searches} afirmações {"mais importantes, uma por pesquisa" if is_dossie else "principais e formula 1 query composta"}
 2. {"Faz 1 web_search por afirmação (total: 3 chamadas)" if is_dossie else "Faz 1 web_search com query composta em inglês"}
-3. Avalia:
-   - veracidade (0.0=falso, 0.5=meia-verdade, 1.0=confirmado por fontes primárias)
-   - bias (0.0=neutro/baseado em factos, 1.0=sem suporte factual ou propaganda)
+3. Avalia com GRANULARIDADE (usa decimais exactos, NUNCA multiplos de 0.05):
+
+   certainty_score — baseado na qualidade e quantidade de fontes:
+   - 0.96-1.00: 3+ fontes primárias oficiais independentes confirmam (raríssimo)
+   - 0.91-0.95: 2 fontes primárias + contexto confirma
+   - 0.86-0.90: 1 fonte primária + 1-2 fontes secundárias
+   - 0.80-0.85: Fontes secundárias apenas (agências, media credível)
+   - 0.70-0.79: 1 fonte credível sem corroboração
+   - <0.70: Não aprovado
+
+   bias_score — baseado em desvio factual (0.0=neutro perfeito):
+   - 0.01-0.06: Factos puros, sem adjectivação, múltiplas perspectivas
+   - 0.07-0.12: Ligeiro enquadramento editorial, factos correctos
+   - 0.13-0.19: Perspectiva dominante mas factos suportados
+   - 0.20-0.30: Viés evidente, omissão de contra-argumentos
+   - >0.30: Propaganda ou desinformação
+
+   IMPORTANTE: Calcula o score EXACTO para este artigo específico. Cada artigo é diferente.
+   Exemplos: 0.87, 0.93, 0.11, 0.08, 0.14 — NUNCA uses 0.90, 0.95, 0.10, 0.05, 0.85.
+   
    - frescura (o evento aconteceu nos últimos 7 dias? se não, nota a data real)
 4. Devolve JSON final:
 
 {{
   "aprovado": true,
-  "certainty_score": 0.85,
-  "bias_score": 0.10,
+  "certainty_score": 0.87,
+  "bias_score": 0.08,
   "veracidade": "confirmado",
   "fontes_encontradas": ["url1", "url2"],
   "data_real_evento": "2026-03-15",
-  "notas": "Confirmado por relatório FATF 2025 e dados do Banco Central"
+  "notas": "Confirmado por relatório FATF 2025 e dados do Banco Central. Certainty 0.87 porque fonte primária (FATF) confirma directamente + 1 fonte secundária (Reuters). Bias 0.08 porque enquadramento é factual mas inclui ligeira ênfase editorial no título."
 }}"""
 
     response = chat_with_tools(

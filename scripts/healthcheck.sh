@@ -1,22 +1,31 @@
 #!/bin/bash
-# NoticIA Healthcheck — sends Telegram alert if services are down
+# NoticIA Healthcheck — Docker Compose edition
 # Run via crontab every 5 minutes: */5 * * * * /home/ubuntu/noticia/scripts/healthcheck.sh
 
 BOT_TOKEN="8657227084:AAEVyu8IJr4u7dV0oK7QnTeab-jMvuf5Bg0"
 CHAT_ID="1353134241"
 HOSTNAME=$(hostname)
+COMPOSE_DIR="/home/ubuntu/noticia"
 
-SERVICES=("noticia-pipeline" "noticia-telegram" "noticia-diretor-elite")
+# Map: display-name → docker compose service name
+declare -A SERVICES=(
+    ["noticia-pipeline"]="pipeline"
+    ["noticia-telegram"]="telegram-collector"
+    ["noticia-diretor-elite"]="telegram-bot"
+)
+
 FAILURES=()
 
-for svc in "${SERVICES[@]}"; do
-    if ! systemctl is-active --quiet "$svc"; then
-        FAILURES+=("$svc")
+for display_name in "${!SERVICES[@]}"; do
+    svc="${SERVICES[$display_name]}"
+    status=$(cd "$COMPOSE_DIR" && docker compose ps --format '{{.State}}' "$svc" 2>/dev/null)
+    if [ "$status" != "running" ]; then
+        FAILURES+=("$display_name ($status)")
     fi
 done
 
-# Check if pipeline had any log activity in the last hour
-LAST_LOG_AGE=$(journalctl -u noticia-pipeline --since "1 hour ago" --no-pager -q 2>/dev/null | wc -l)
+# Check pipeline log activity in the last hour
+LAST_LOG_COUNT=$(cd "$COMPOSE_DIR" && docker compose logs --since 1h pipeline 2>/dev/null | wc -l)
 
 if [ ${#FAILURES[@]} -gt 0 ]; then
     MSG="🔴 *ALERTA NoticIA* [${HOSTNAME}]
@@ -38,8 +47,7 @@ fi
 
 # Only alert about silent pipeline during working hours (6-23 UTC)
 HOUR=$(date +%H)
-if [ "$LAST_LOG_AGE" -eq 0 ] && [ "$HOUR" -ge 6 ] && [ "$HOUR" -le 23 ]; then
-    # Use a lockfile to avoid spamming — only alert once per hour
+if [ "$LAST_LOG_COUNT" -eq 0 ] && [ "$HOUR" -ge 6 ] && [ "$HOUR" -le 23 ]; then
     LOCKFILE="/tmp/noticia-silent-alert.lock"
     if [ ! -f "$LOCKFILE" ] || [ $(( $(date +%s) - $(stat -c %Y "$LOCKFILE" 2>/dev/null || echo 0) )) -gt 3600 ]; then
         MSG="⚠️ *NoticIA Pipeline Silencioso*

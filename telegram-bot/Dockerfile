@@ -6,7 +6,12 @@ RUN groupadd -r appgroup && useradd -r -g appgroup -d /app appuser
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Copy all Python modules (bot + elite team)
 COPY --chown=appuser:appgroup bot.py .
+COPY --chown=appuser:appgroup elite_orchestrator.py .
+COPY --chown=appuser:appgroup elite_reporter.py .
+COPY --chown=appuser:appgroup elite_fact_checker.py .
+COPY --chown=appuser:appgroup elite_writer.py .
 
 # Data directory for session file (writable volume)
 RUN mkdir -p /app/data && chown appuser:appgroup /app/data
