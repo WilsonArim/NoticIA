@@ -5,8 +5,6 @@ import Link from "next/link";
 import { Bot, ArrowRight } from "lucide-react";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { PipelineChart } from "@/components/dashboard/PipelineChart";
-import { InjetorPanel } from "@/components/dashboard/InjetorPanel";
-import { EditorChat } from "@/components/dashboard/EditorChat";
 
 
 interface AgentStat {
@@ -86,16 +84,6 @@ export function DashboardAnimated({
         </Link>
       </motion.div>
 
-      {/* Editor Editorial */}
-      <motion.section variants={fadeUp} className="mb-8">
-        <h2
-          className="mb-4 font-serif text-xl font-semibold"
-          style={{ color: "var(--text-primary)" }}
-        >
-          Editor Editorial
-        </h2>
-        <EditorChat />
-      </motion.section>
 
       {/* Stats Grid */}
       <motion.div variants={fadeUp} className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -238,16 +226,6 @@ export function DashboardAnimated({
         )}
       </motion.section>
 
-      {/* Injeção Manual */}
-      <motion.section variants={fadeUp} className="mb-8">
-        <h2
-          className="mb-4 font-serif text-xl font-semibold"
-          style={{ color: "var(--text-primary)" }}
-        >
-          Injetar Notícia Manual
-        </h2>
-        <InjetorPanel />
-      </motion.section>
 
       {/* Recent Events */}
       <motion.section variants={fadeUp}>
