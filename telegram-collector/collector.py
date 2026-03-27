@@ -456,7 +456,7 @@ def log_pipeline_run(stats: dict) -> None:
         sb = get_supabase()
         sb.table("pipeline_runs").insert(
             {
-                "stage": "collect-telegram",
+                "stage": "collect_telegram",
                 "status": "completed",
                 "started_at": datetime.now(timezone.utc).isoformat(),
                 "completed_at": datetime.now(timezone.utc).isoformat(),
