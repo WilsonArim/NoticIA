@@ -319,6 +319,13 @@ REGRAS FUNDAMENTAIS:
 3. Compara como DIFERENTES fontes cobrem o mesmo evento.
 4. Procura dados PRIMARIOS (governos, institutos, ONG) que contradizem ou complementam a narrativa.
 5. Uma noticia que omite factos relevantes e tao enviesada como uma que mente.
+6. DATAS DAS FONTES — CRÍTICO: Inclui em "fontes_encontradas" APENAS URLs que cobrem o evento ACTUAL.
+   - Um artigo de 2022 sobre o mesmo tema NAO verifica um evento de {hoje}.
+   - Se encontrares cobertura de evento semanticamente similar mas de OUTRA DATA, IGNORA essa fonte.
+   - Exemplo: um despiste em Tomar a 4 marco NAO verifica um despiste em Tomar a 27 marco — sao eventos DIFERENTES.
+   - Inclui SEMPRE o ano de {hoje[:4]} E o mes nas tuas queries de pesquisa para forcares resultados recentes.
+   - Verifica SEMPRE se a data de publicacao da fonte e compativel com a data do evento (diferenca maxima de 3 dias).
+7. Responde sempre em JSON valido no final.
 
 ANALISA:
 1. FACTOS - Os dados apresentados sao correctos?
@@ -517,28 +524,60 @@ def _parse_fc_response(response: str) -> dict:
     return {"aprovado": False, "certainty_score": 0.0, "notas": "Falha a parsear resposta FC"}
 
 
-def _extract_year_from_url(url: str) -> int | None:
-    """Extrai o ano de publicação de um URL se estiver embutido no path."""
-    patterns = [
-        r"/(\d{4})/\d{2}/\d{2}/",   # /YYYY/MM/DD/
-        r"/(\d{4})/\d{2}/",          # /YYYY/MM/
-        r"/(\d{4})/[^/]",            # /YYYY/slug
-        r"-(\d{4})\d{4}",            # -YYYYMMDD
-        r"_(\d{4})\d{4}",            # _YYYYMMDD
+def _extract_date_from_url(url: str) -> tuple[int | None, str | None]:
+    """Extrai ano e data completa (YYYY-MM-DD) de um URL se embutidos no path.
+
+    Retorna (ano, data_str) — data_str pode ser None mesmo quando ano é encontrado.
+    """
+    from datetime import date as date_type
+
+    # Padrões que capturam data completa (YYYY-MM-DD)
+    full_date_patterns = [
+        r"/(\d{4})/(\d{2})/(\d{2})/",     # /YYYY/MM/DD/
+        r"/(\d{4})-(\d{2})-(\d{2})[/-]",   # /YYYY-MM-DD/ ou /YYYY-MM-DD-slug
+        r"-(\d{4})(\d{2})(\d{2})",          # -YYYYMMDD (ex: slug-20260327)
+        r"_(\d{4})(\d{2})(\d{2})",          # _YYYYMMDD
+        r"/(\d{4})(\d{2})(\d{2})/",         # /YYYYMMDD/
     ]
-    for pat in patterns:
+    for pat in full_date_patterns:
+        m = re.search(pat, url)
+        if m:
+            year, month, day = int(m.group(1)), int(m.group(2)), int(m.group(3))
+            if 2000 <= year <= 2100 and 1 <= month <= 12 and 1 <= day <= 31:
+                try:
+                    date_type(year, month, day)  # valida a data
+                    return year, f"{year:04d}-{month:02d}-{day:02d}"
+                except ValueError:
+                    pass
+
+    # Padrões que capturam apenas ano (+mês opcional)
+    year_patterns = [
+        r"/(\d{4})/(\d{2})/",              # /YYYY/MM/
+        r"/(\d{4})/[^/\d]",                # /YYYY/slug
+    ]
+    for pat in year_patterns:
         m = re.search(pat, url)
         if m:
             year = int(m.group(1))
             if 2000 <= year <= 2100:
-                return year
-    return None
+                return year, None
+
+    return None, None
+
+
+# Máximo de dias de diferença entre data do evento e data da fonte
+MAX_SOURCE_AGE_DIFF_DAYS = int(os.getenv("MAX_SOURCE_AGE_DIFF_DAYS", "5"))
 
 
 def _filter_stale_sources(
     fontes: list[str], data_real_str: str | None
 ) -> tuple[list[str], list[str]]:
-    """Remove fontes cujo URL contém um ano diferente do evento.
+    """Remove fontes cujo URL contém uma data incompatível com o evento.
+
+    Verifica:
+    1. Ano diferente → rejeita
+    2. Data completa com diferença > MAX_SOURCE_AGE_DIFF_DAYS → rejeita
+    3. Sem data no URL → aceita (com warning)
 
     Retorna (fontes_válidas, fontes_rejeitadas).
     """
@@ -549,18 +588,50 @@ def _filter_stale_sources(
     except ValueError:
         return fontes, []
 
+    # Tentar obter data completa do evento para comparação mais precisa
+    evento_date = None
+    if len(str(data_real_str)) >= 10:
+        try:
+            evento_date = datetime.strptime(str(data_real_str)[:10], "%Y-%m-%d").date()
+        except ValueError:
+            pass
+
     validas: list[str] = []
     rejeitadas: list[str] = []
     for url in fontes:
-        url_year = _extract_year_from_url(url)
+        url_year, url_date_str = _extract_date_from_url(url)
+
+        # Caso 1: Ano diferente → rejeita
         if url_year is not None and url_year != evento_year:
             rejeitadas.append(url)
             logger.warning(
                 "Fonte rejeitada (ano URL %d ≠ evento %d): %s",
                 url_year, evento_year, url,
             )
-        else:
-            validas.append(url)
+            continue
+
+        # Caso 2: Data completa no URL → verificar proximidade ao evento
+        if url_date_str and evento_date:
+            try:
+                url_date = datetime.strptime(url_date_str, "%Y-%m-%d").date()
+                diff_days = abs((evento_date - url_date).days)
+                if diff_days > MAX_SOURCE_AGE_DIFF_DAYS:
+                    rejeitadas.append(url)
+                    logger.warning(
+                        "Fonte rejeitada (data URL %s difere %d dias do evento %s): %s",
+                        url_date_str, diff_days, data_real_str, url,
+                    )
+                    continue
+            except ValueError:
+                pass
+
+        # Caso 3: Sem data no URL → aceita mas loga warning
+        if url_year is None:
+            logger.info(
+                "Fonte sem data no URL (aceite com cautela): %s", url,
+            )
+
+        validas.append(url)
     return validas, rejeitadas
 
 

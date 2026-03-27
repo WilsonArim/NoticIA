@@ -8,13 +8,13 @@ Uso:
 
 Fluxo do pipeline V3 (contra-media):
   raw_events (com source_type: media|alternative|editorial_injection)
-    → [dispatcher V3]    cada 5 min   — dedup + filtro + batch LLM + quality gate + vertente
+    → [dispatcher V3]    cada 30 min  — dedup + filtro + batch LLM + quality gate + vertente
     → intake_queue (status='auditor_approved', vertente=media_watch|alt_news|editorial)
-    → [fact_checker V3]  cada 25 min  — dual-mode: auditoria media | verificação rigorosa | editorial
+    → [fact_checker V3]  cada 15 min  — dual-mode: auditoria media | verificação rigorosa | editorial
     → intake_queue (status='approved', bias_verdict, media_audit)
     → [decisor editorial] cada 10 min — gate: publicar (tipo) | descartar | wilson_review
     → intake_queue (status='ready_to_write', article_type)
-    → [escritor V3]      cada 30 min  — 4 templates: exposé, omissão, alt-news, fact-check
+    → [escritor V3]      cada 15 min  — 4 templates: exposé, omissão, alt-news, fact-check
     → articles (status='published', article_type)
     → [cronistas]        dom 10:00    — 10 crónicas semanais
 
@@ -128,10 +128,10 @@ scheduler.add_job(
 )
 
 # ── Camada 2 — Dispatcher V2 (dedup + filtro + batch LLM + quality gate) ──
-# Cada 5 min: lê raw_events, filtra sem LLM, classifica em batch
+# Cada 30 min: lê raw_events, filtra sem LLM, classifica em batch
 scheduler.add_job(
     run_dispatcher,
-    IntervalTrigger(minutes=5),
+    IntervalTrigger(minutes=30),
     id="dispatcher",
     max_instances=1,
 )
@@ -212,7 +212,7 @@ if __name__ == "__main__":
     run_dispatcher()
 
     scheduler.start()
-    logger.info("Scheduler V3 activo. Jobs: collectors(15m) | dispatcher(5m) | fact_checker(15m) | decisor(10m) | escritor(15m) | pipeline_health(30m) | coverage(6h) | cronistas(dom 10h)")
+    logger.info("Scheduler V3 activo. Jobs: collectors(15m) | dispatcher(30m) | fact_checker(15m) | decisor(10m) | escritor(15m) | pipeline_health(30m) | coverage(6h) | cronistas(dom 10h)")
 
     try:
         while True:

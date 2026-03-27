@@ -327,7 +327,30 @@ def _template_standard(item: dict, fc: dict) -> str:
     """STANDARD template — backward compatible, same as original escritor."""
     notas_fc = fc.get("notas", "")
 
+    hoje = datetime.now(timezone.utc)
+    hoje_str = hoje.strftime("%Y-%m-%d")
+    DIAS_SEMANA_PT = ["segunda-feira", "terca-feira", "quarta-feira", "quinta-feira",
+                      "sexta-feira", "sabado", "domingo"]
+    dia_semana_hoje = DIAS_SEMANA_PT[hoje.weekday()]
+    data_real = fc.get("data_real_evento") or ""
+    dia_semana_evento = ""
+    if data_real and len(str(data_real)) >= 10:
+        try:
+            evento_dt = datetime.strptime(str(data_real)[:10], "%Y-%m-%d")
+            dia_semana_evento = DIAS_SEMANA_PT[evento_dt.weekday()]
+        except ValueError:
+            pass
+    if data_real and dia_semana_evento:
+        ctx_temporal = f"- Data real do evento: {data_real} ({dia_semana_evento})"
+    else:
+        ctx_temporal = "- Data real do evento: desconhecida — usa termos vagos como «recentemente»"
+
     return f"""Es um jornalista rigoroso. Escreve um artigo em **PT-PT** (Portugal, nao Brasil).
+
+CONTEXTO TEMPORAL (OBRIGATORIO — usa estas datas, NAO inventes):
+- Hoje: {hoje_str} ({dia_semana_hoje})
+{ctx_temporal}
+- NUNCA inventes o dia da semana — calcula a partir das datas acima
 
 {_base_rules_ptpt()}
 
@@ -396,6 +419,7 @@ def _publicar_artigo(supabase, item: dict, artigo: dict):
         "claim_subject": item.get("title", "")[:100],
         "intake_queue_id": item["id"],
         "article_type": artigo.get("_article_type", (item.get("metadata") or {}).get("article_type", "standard")),
+        "published_at": datetime.now(timezone.utc).isoformat(),
     }
 
     result = supabase.rpc("publish_article_with_sources", {"payload": payload}).execute()
