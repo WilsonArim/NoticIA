@@ -11,6 +11,7 @@ services:
       - LOG_DIR=/var/log/noticia
     volumes:
       - /var/log/noticia:/var/log/noticia
+      - ./DIARIO-DE-BORDO.md:/app/DIARIO-DE-BORDO.md
     healthcheck:
       test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
       interval: 60s

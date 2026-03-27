@@ -55,6 +55,28 @@ def run_editorial_decisor() -> dict:
     except Exception as e:
         logger.warning("Decisor: falha ao criar pipeline_run: %s", e)
 
+    # ── Auto-expire: wilson_review items older than 2 days → discarded ──
+    REVIEW_EXPIRE_DAYS = int(os.getenv("REVIEW_EXPIRE_DAYS", "2"))
+    try:
+        from datetime import timedelta
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=REVIEW_EXPIRE_DAYS)).isoformat()
+        expired = (
+            supabase.table("intake_queue")
+            .select("id, title")
+            .eq("status", "wilson_review")
+            .lt("created_at", cutoff)
+            .execute()
+        )
+        if expired.data:
+            for ex in expired.data:
+                supabase.table("intake_queue").update({
+                    "status": "discarded",
+                    "error_message": f"AUTO_EXPIRE: wilson_review sem decisao ha >{REVIEW_EXPIRE_DAYS} dias",
+                }).eq("id", ex["id"]).execute()
+            logger.info("Decisor: %d wilson_review expirados (>%dd) → discarded", len(expired.data), REVIEW_EXPIRE_DAYS)
+    except Exception as e:
+        logger.warning("Decisor: falha ao expirar wilson_review antigos: %s", e)
+
     # Fetch items that passed FC (status='approved')
     result = (
         supabase.table("intake_queue")
