@@ -84,8 +84,11 @@ def _record_invalid_channel(handle: str, reason: str) -> None:
     """Track channels that don't exist or are inaccessible."""
     _invalid_channels.add(handle)
     # Append to file immediately (deduped on read)
-    with open(INVALID_CHANNELS_FILE, "a") as f:
-        f.write(f"{handle}\t{reason}\n")
+    try:
+        with open(INVALID_CHANNELS_FILE, "a") as f:
+            f.write(f"{handle}\t{reason}\n")
+    except PermissionError:
+        logger.warning("Cannot write to %s (permission denied) — channel tracked in memory only", INVALID_CHANNELS_FILE)
 
 
 def save_invalid_channels_report() -> None:
@@ -492,6 +495,7 @@ async def main() -> None:
         sys.exit(1)
 
     while not _shutdown.is_set():
+        stats: dict = {}
         try:
             stats = await collect_cycle()
             logger.info(
