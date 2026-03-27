@@ -158,6 +158,34 @@ def _escrever_artigo(item: dict) -> dict:
     raise ValueError(f"Escritor: resposta invalida: {response[:200]}")
 
 
+def _temporal_context(item: dict, fc: dict) -> str:
+    """Generate CONTEXTO TEMPORAL block for any template."""
+    hoje = datetime.now(timezone.utc)
+    hoje_str = hoje.strftime("%Y-%m-%d")
+    DIAS_SEMANA_PT = ["segunda-feira", "terca-feira", "quarta-feira", "quinta-feira",
+                      "sexta-feira", "sabado", "domingo"]
+    dia_semana_hoje = DIAS_SEMANA_PT[hoje.weekday()]
+
+    data_real = fc.get("data_real_evento") or (item.get("metadata") or {}).get("data_real_evento") or ""
+    dia_semana_evento = ""
+    if data_real and len(str(data_real)) >= 10:
+        try:
+            evento_dt = datetime.strptime(str(data_real)[:10], "%Y-%m-%d")
+            dia_semana_evento = DIAS_SEMANA_PT[evento_dt.weekday()]
+        except ValueError:
+            pass
+
+    if data_real and dia_semana_evento:
+        ctx_evento = f"- Data real do evento: {data_real} ({dia_semana_evento})"
+    else:
+        ctx_evento = "- Data real do evento: desconhecida — usa termos vagos como «recentemente»"
+
+    return f"""CONTEXTO TEMPORAL (OBRIGATORIO — usa estas datas, NAO inventes):
+- Hoje: {hoje_str} ({dia_semana_hoje})
+{ctx_evento}
+- NUNCA inventes o dia da semana — calcula a partir das datas acima"""
+
+
 def _base_rules_ptpt() -> str:
     """Common PT-PT writing rules for all templates."""
     return """REGRAS LINGUISTICAS PT-PT:
@@ -193,6 +221,8 @@ def _template_expose(item: dict, fc: dict, bv: dict) -> str:
 
     return f"""Es um jornalista investigativo do NoticIA. A tua missao e DESMASCARAR o vies dos media.
 
+{_temporal_context(item, fc)}
+
 {_base_rules_ptpt()}
 
 DADOS DO EXPOSE:
@@ -224,6 +254,8 @@ def _template_omission(item: dict, fc: dict, bv: dict) -> str:
 
     return f"""Es um jornalista do NoticIA. Estas a cobrir algo que os media portugueses IGNORAM ou SUB-REPORTAM.
 
+{_temporal_context(item, fc)}
+
 {_base_rules_ptpt()}
 
 DADOS:
@@ -251,6 +283,8 @@ def _template_alt_news(item: dict, fc: dict) -> str:
     fontes = fc.get("fontes_encontradas", [])
 
     return f"""Es um jornalista rigoroso. Escreve um artigo em PT-PT sobre uma noticia verificada que NAO foi coberta pela imprensa mainstream.
+
+{_temporal_context(item, fc)}
 
 {_base_rules_ptpt()}
 
@@ -281,6 +315,8 @@ def _template_fact_check(item: dict, fc: dict, bv: dict) -> str:
 
     return f"""Es um fact-checker jornalistico. Escreve uma desmontagem ponto a ponto em PT-PT.
 
+{_temporal_context(item, fc)}
+
 {_base_rules_ptpt()}
 
 DADOS:
@@ -308,6 +344,8 @@ def _template_editorial(item: dict, fc: dict) -> str:
 
     return f"""Es um jornalista rigoroso. O editor-chefe submeteu esta noticia para publicacao. Escreve em PT-PT.
 
+{_temporal_context(item, fc)}
+
 {_base_rules_ptpt()}
 
 DADOS:
@@ -327,30 +365,9 @@ def _template_standard(item: dict, fc: dict) -> str:
     """STANDARD template — backward compatible, same as original escritor."""
     notas_fc = fc.get("notas", "")
 
-    hoje = datetime.now(timezone.utc)
-    hoje_str = hoje.strftime("%Y-%m-%d")
-    DIAS_SEMANA_PT = ["segunda-feira", "terca-feira", "quarta-feira", "quinta-feira",
-                      "sexta-feira", "sabado", "domingo"]
-    dia_semana_hoje = DIAS_SEMANA_PT[hoje.weekday()]
-    data_real = fc.get("data_real_evento") or ""
-    dia_semana_evento = ""
-    if data_real and len(str(data_real)) >= 10:
-        try:
-            evento_dt = datetime.strptime(str(data_real)[:10], "%Y-%m-%d")
-            dia_semana_evento = DIAS_SEMANA_PT[evento_dt.weekday()]
-        except ValueError:
-            pass
-    if data_real and dia_semana_evento:
-        ctx_temporal = f"- Data real do evento: {data_real} ({dia_semana_evento})"
-    else:
-        ctx_temporal = "- Data real do evento: desconhecida — usa termos vagos como «recentemente»"
-
     return f"""Es um jornalista rigoroso. Escreve um artigo em **PT-PT** (Portugal, nao Brasil).
 
-CONTEXTO TEMPORAL (OBRIGATORIO — usa estas datas, NAO inventes):
-- Hoje: {hoje_str} ({dia_semana_hoje})
-{ctx_temporal}
-- NUNCA inventes o dia da semana — calcula a partir das datas acima
+{_temporal_context(item, fc)}
 
 {_base_rules_ptpt()}
 
