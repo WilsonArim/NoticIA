@@ -25,6 +25,7 @@ EDGE_RECEIVE_RATIONALE = f"{EDGE_FUNCTION_BASE}/receive-rationale"
 EDGE_AGENT_LOG = f"{EDGE_FUNCTION_BASE}/agent-log"
 
 # --- GDELT Queries (20 areas) ---
+GDELT_QUERIES: dict[str, str] = {
     "geopolitics": "sanctions OR diplomacy OR nato OR sovereignty OR territorial dispute",
     "defense": "military OR missile OR armed forces OR weapons OR deployment OR drone strike",
     "economy": "GDP OR inflation OR central bank OR recession OR trade deficit OR tariff",
