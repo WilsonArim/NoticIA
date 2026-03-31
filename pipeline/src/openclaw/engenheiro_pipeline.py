@@ -613,6 +613,46 @@ def _log_health_report(sb, probes: dict, issues: list[dict], duration_ms: int) -
         logger.warning("Falha ao registar health report: %s", e)
 
 
+# ── Auto-cleanup de statuses terminais ────────────────────────────────────
+
+def _auto_cleanup_intake(sb) -> None:
+    """Remove items em statuses terminais para evitar backlog infinito.
+
+    Executado a cada check (~30 min). Regras:
+    - pending (telegram garbage, nunca processados): eliminar > 1 dia
+    - fact_check (rejeitados pelo quality gate): eliminar > 2 dias
+    - processed (já publicados como artigos): eliminar > 3 dias
+    - discarded (descartados pelo decisor): eliminar > 2 dias
+    """
+    rules = [
+        ("pending", 1),
+        ("fact_check", 2),
+        ("processed", 3),
+        ("discarded", 2),
+    ]
+    total_cleaned = 0
+    for status, days in rules:
+        try:
+            from datetime import timedelta
+            cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+            result = (
+                sb.table("intake_queue")
+                .delete()
+                .eq("status", status)
+                .lt("created_at", cutoff)
+                .execute()
+            )
+            count = len(result.data) if result.data else 0
+            if count > 0:
+                total_cleaned += count
+                logger.info("Cleanup: %d items '%s' (>%dd) eliminados", count, status, days)
+        except Exception as e:
+            logger.warning("Cleanup falhou para status '%s': %s", status, e)
+
+    if total_cleaned > 0:
+        logger.info("Cleanup total: %d items terminais eliminados", total_cleaned)
+
+
 # ── Diário de Bordo (resumo diário) ──────────────────────────────────────
 
 def _update_diario(probes: dict, issues: list[dict]) -> None:
@@ -772,7 +812,10 @@ def run_pipeline_health() -> None:
     # 5. Alertar via Telegram se necessário
     _send_telegram_alert(issues)
 
-    # 6. Diário de bordo (1x/dia)
+    # 6. Auto-cleanup de statuses terminais (evita backlog infinito)
+    _auto_cleanup_intake(sb)
+
+    # 7. Diário de bordo (1x/dia)
     _update_diario(probes, issues)
 
     logger.info("═══ Engenheiro Pipeline V3 — Check concluído em %dms ═══", duration_ms)
