@@ -20,7 +20,8 @@ SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
 MODEL = os.getenv("MODEL_ESCRITOR", "nemotron-3-super:cloud")
 BATCH_SIZE = int(os.getenv("ESCRITOR_BATCH_SIZE", "25"))
 MAX_EVENT_AGE_DAYS = int(os.getenv("MAX_EVENT_AGE_DAYS", "7"))
-CERTAINTY_THRESHOLD = float(os.getenv("ESCRITOR_CERTAINTY_THRESHOLD", "0.895"))
+CERTAINTY_THRESHOLD = float(os.getenv("ESCRITOR_CERTAINTY_THRESHOLD", "0.75"))
+BIAS_MAX_EXPOSE = float(os.getenv("ESCRITOR_BIAS_MAX_EXPOSE", "0.85"))
 
 
 def run_escritor():
@@ -394,12 +395,27 @@ def _publicar_artigo(supabase, item: dict, artigo: dict):
 
     fact_summary = item.get("fact_check_summary") or {}
     certainty = float(fact_summary.get("certainty_score", 0.0))
+    bias_score = float(item.get("bias_score", 0.20))
+    article_type = artigo.get("_article_type", (item.get("metadata") or {}).get("article_type", "standard"))
 
     # CRIT-005: Quality gate — rejeita artigos abaixo do threshold de certeza
     if certainty < CERTAINTY_THRESHOLD:
         raise ValueError(
             f"QUALITY_GATE: certainty_score={certainty:.2f} < threshold={CERTAINTY_THRESHOLD} "
             f"para '{item.get('title', '')[:60]}'"
+        )
+
+    # CRIT-006: Bias score gate — in contra-media platform, expose & omission articles inherently have higher bias
+    # Allow higher bias for exposés and omissions (detecting media bias IS the point)
+    if article_type in ("expose", "omission"):
+        max_bias = BIAS_MAX_EXPOSE
+    else:
+        max_bias = 0.5
+
+    if bias_score > max_bias:
+        raise ValueError(
+            f"QUALITY_GATE: bias_score={bias_score:.2f} > max={max_bias} para article_type='{article_type}' "
+            f"em '{item.get('title', '')[:60]}'"
         )
 
     # Juntar fontes: URL original + fontes do fact-checker (dedup, máx 6)
@@ -429,13 +445,13 @@ def _publicar_artigo(supabase, item: dict, artigo: dict):
         "area": item.get("area", "mundo"),
         "priority": item.get("priority", "p2"),
         "certainty_score": certainty,
-        "bias_score": float(item.get("bias_score", 0.20)),
+        "bias_score": bias_score,
         "tags": artigo.get("tags", []),
         "fontes": todas_fontes,
         "claim_text": claim_text,
         "claim_subject": item.get("title", "")[:100],
         "intake_queue_id": item["id"],
-        "article_type": artigo.get("_article_type", (item.get("metadata") or {}).get("article_type", "standard")),
+        "article_type": article_type,
         "published_at": datetime.now(timezone.utc).isoformat(),
     }
 

@@ -512,7 +512,7 @@ Faz 1-2 web_search para confirmar os factos. Devolve JSON final."""
 
 
 def _parse_fc_response(response: str) -> dict:
-    """Parse JSON from FC response, handling various formats."""
+    """Parse JSON from FC response, handling various formats. Falls back to neutral score."""
     start = response.find("{")
     end = response.rfind("}") + 1
     if start >= 0 and end > start:
@@ -521,7 +521,9 @@ def _parse_fc_response(response: str) -> dict:
         except json.JSONDecodeError:
             pass
 
-    return {"aprovado": False, "certainty_score": 0.0, "notas": "Falha a parsear resposta FC"}
+    # Fallback to neutral certainty (0.50) instead of rejection (0.0)
+    # Allows the article a second chance through the pipeline rather than auto-rejecting
+    return {"aprovado": False, "certainty_score": 0.50, "notas": "Falha a parsear resposta FC (fallback neutro)"}
 
 
 def _extract_date_from_url(url: str) -> tuple[int | None, str | None]:
