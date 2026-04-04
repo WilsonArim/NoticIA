@@ -625,10 +625,10 @@ def _auto_cleanup_intake(sb) -> None:
     - discarded (descartados pelo decisor): eliminar > 2 dias
     """
     rules = [
-        ("pending", 1),
-        ("fact_check", 2),
-        ("processed", 3),
-        ("discarded", 2),
+        ("pending", 0),
+        ("fact_check", 1),
+        ("processed", 1),
+        ("discarded", 1),
     ]
     total_cleaned = 0
     for status, days in rules:
